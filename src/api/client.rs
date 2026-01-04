@@ -217,6 +217,49 @@ impl ApiClient {
         resp.data
             .ok_or_else(|| anyhow::anyhow!("No data in video info response"))
     }
+
+    // Search API
+    pub async fn search_videos(&self, keyword: &str, page: i32) -> Result<super::search::SearchData> {
+        let url = self.build_url(
+            BilibiliApiDomain::Main,
+            "/x/web-interface/wbi/search/type",
+        );
+
+        let params = vec![
+            ("search_type", "video".to_string()),
+            ("keyword", keyword.to_string()),
+            ("page", page.to_string()),
+            ("order", "totalrank".to_string()),
+        ];
+
+        let resp: ApiResponse<super::search::SearchData> = self.get_with_wbi(&url, params).await?;
+        Ok(resp.data.unwrap_or(super::search::SearchData {
+            result: None,
+            num_results: Some(0),
+            page: Some(page),
+            pagesize: Some(20),
+        }))
+    }
+
+    // Dynamic Feed API
+    pub async fn get_dynamic_feed(&self, offset: Option<&str>) -> Result<super::dynamic::DynamicFeedData> {
+        let mut url = format!(
+            "{}/x/polymer/web-dynamic/v1/feed/all?type=video",
+            BilibiliApiDomain::Main.as_str()
+        );
+        
+        if let Some(off) = offset {
+            url.push_str(&format!("&offset={}", off));
+        }
+
+        let resp: ApiResponse<super::dynamic::DynamicFeedData> = self.get(&url).await?;
+        Ok(resp.data.unwrap_or(super::dynamic::DynamicFeedData {
+            items: None,
+            offset: None,
+            has_more: Some(false),
+            update_num: Some(0),
+        }))
+    }
 }
 
 impl Default for ApiClient {

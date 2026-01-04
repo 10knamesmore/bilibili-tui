@@ -11,11 +11,20 @@ use ratatui::{
     widgets::*,
 };
 use ratatui_image::{picker::Picker, protocol::StatefulProtocol, StatefulImage};
+use std::collections::HashSet;
+use std::sync::Arc;
+use tokio::sync::mpsc;
 
 /// Video card with cached cover image
 pub struct VideoCard {
     pub video: VideoItem,
     pub cover: Option<StatefulProtocol>,
+}
+
+/// Message for completed cover download
+pub struct CoverResult {
+    pub index: usize,
+    pub protocol: StatefulProtocol,
 }
 
 pub struct HomePage {
@@ -24,17 +33,23 @@ pub struct HomePage {
     loading: bool,
     error_message: Option<String>,
     scroll_row: usize,
-    picker: Picker,
+    picker: Arc<Picker>,
     columns: usize,
     card_height: u16,
-    images_loaded: bool,
+    // Async cover loading
+    cover_tx: mpsc::Sender<CoverResult>,
+    cover_rx: mpsc::Receiver<CoverResult>,
+    pending_downloads: HashSet<usize>,
 }
 
 impl HomePage {
     pub fn new() -> Self {
         // Try to detect terminal graphics protocol (Kitty/Sixel/iTerm2)
         // Fall back to halfblocks if detection fails
-        let picker = Picker::from_query_stdio().unwrap_or_else(|_| Picker::halfblocks());
+        let picker = Arc::new(Picker::from_query_stdio().unwrap_or_else(|_| Picker::halfblocks()));
+        
+        // Create channel for background image downloads
+        let (cover_tx, cover_rx) = mpsc::channel(32);
         
         Self {
             videos: Vec::new(),
@@ -45,14 +60,16 @@ impl HomePage {
             picker,
             columns: 3,
             card_height: 12,
-            images_loaded: false,
+            cover_tx,
+            cover_rx,
+            pending_downloads: HashSet::new(),
         }
     }
 
     pub async fn load_recommendations(&mut self, api_client: &ApiClient) {
         self.loading = true;
         self.error_message = None;
-        self.images_loaded = false;
+        self.pending_downloads.clear();
 
         match api_client.get_recommendations().await {
             Ok(videos) => {
@@ -74,35 +91,46 @@ impl HomePage {
         }
     }
 
-    /// Load cover images for visible videos (call this in tick)
-    pub async fn load_visible_covers(&mut self) {
-        if self.images_loaded || self.videos.is_empty() {
+    /// Start background downloads for visible covers (non-blocking)
+    pub fn start_cover_downloads(&mut self) {
+        if self.videos.is_empty() {
             return;
         }
 
-        // Load covers for current visible range
+        // Calculate visible range
         let start = self.scroll_row * self.columns;
-        let end = (start + self.columns * 3).min(self.videos.len());
+        let end = (start + self.columns * 4).min(self.videos.len()); // Prefetch extra rows
         
         for idx in start..end {
-            if self.videos[idx].cover.is_some() {
+            // Skip if already has cover or is pending
+            if self.videos[idx].cover.is_some() || self.pending_downloads.contains(&idx) {
                 continue;
             }
             
             if let Some(pic_url) = self.videos[idx].video.pic.clone() {
-                // Download and process image
-                if let Some(img) = Self::download_image(&pic_url).await {
-                    self.videos[idx].cover = Some(self.picker.new_resize_protocol(img));
-                }
+                self.pending_downloads.insert(idx);
+                let tx = self.cover_tx.clone();
+                let picker = Arc::clone(&self.picker);
+                
+                // Spawn background task
+                tokio::spawn(async move {
+                    if let Some(img) = Self::download_image(&pic_url).await {
+                        let protocol = picker.new_resize_protocol(img);
+                        let _ = tx.send(CoverResult { index: idx, protocol }).await;
+                    }
+                });
             }
         }
-        
-        // Mark as loaded if all visible have covers
-        let all_visible_loaded = (start..end).all(|i| {
-            self.videos[i].cover.is_some() || self.videos[i].video.pic.is_none()
-        });
-        if all_visible_loaded {
-            self.images_loaded = true;
+    }
+
+    /// Poll for completed cover downloads (non-blocking)
+    pub fn poll_cover_results(&mut self) {
+        // Try to receive all available results without blocking
+        while let Ok(result) = self.cover_rx.try_recv() {
+            if result.index < self.videos.len() {
+                self.videos[result.index].cover = Some(result.protocol);
+                self.pending_downloads.remove(&result.index);
+            }
         }
     }
 
@@ -128,7 +156,6 @@ impl HomePage {
         } else if current_row >= self.scroll_row + visible_rows {
             self.scroll_row = current_row - visible_rows + 1;
         }
-        self.images_loaded = false;
     }
 
     fn total_rows(&self) -> usize {
@@ -153,43 +180,74 @@ impl Component for HomePage {
             ])
             .split(area);
 
-        // Header
-        let title = format!(
-            " Bilibili 推荐 | {} 个视频 | 第 {} 行 / {} 行 ",
-            self.videos.len(),
-            self.selected_row() + 1,
-            self.total_rows()
-        );
+        // Header with enhanced styling
+        let title = Line::from(vec![
+            Span::styled(" ", Style::default()),
+            Span::styled("B", Style::default().fg(Color::Rgb(251, 114, 153)).add_modifier(Modifier::BOLD)),
+            Span::styled("ilibili ", Style::default().fg(Color::White).add_modifier(Modifier::BOLD)),
+            Span::styled("推荐", Style::default().fg(Color::Cyan)),
+            Span::styled(" │ ", Style::default().fg(Color::Rgb(80, 80, 80))),
+            Span::styled(format!("{}", self.videos.len()), Style::default().fg(Color::Yellow)),
+            Span::styled(" 个视频 │ ", Style::default().fg(Color::Rgb(80, 80, 80))),
+            Span::styled(format!("{}", self.selected_row() + 1), Style::default().fg(Color::Green)),
+            Span::styled("/", Style::default().fg(Color::Rgb(80, 80, 80))),
+            Span::styled(format!("{}", self.total_rows()), Style::default().fg(Color::Green)),
+            Span::styled(" 行 ", Style::default().fg(Color::Rgb(80, 80, 80))),
+        ]);
+        
         let header = Paragraph::new(title)
-            .block(Block::default().borders(Borders::ALL).title("首页"))
-            .style(Style::default().fg(Color::Cyan))
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .border_type(BorderType::Rounded)
+                    .border_style(Style::default().fg(Color::Rgb(60, 60, 60)))
+                    .title(Span::styled(" 首页 ", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)))
+            )
             .alignment(Alignment::Center);
         frame.render_widget(header, chunks[0]);
 
         // Video grid
         if self.loading {
-            let loading = Paragraph::new("加载中...")
-                .style(Style::default().fg(Color::Yellow))
+            let loading = Paragraph::new("⏳ 加载中...")
+                .style(Style::default().fg(Color::Yellow).add_modifier(Modifier::ITALIC))
                 .alignment(Alignment::Center);
             frame.render_widget(loading, chunks[1]);
         } else if let Some(ref error) = self.error_message {
-            let error_widget = Paragraph::new(error.as_str())
+            let error_widget = Paragraph::new(format!("❌ {}", error))
                 .style(Style::default().fg(Color::Red))
                 .alignment(Alignment::Center);
             frame.render_widget(error_widget, chunks[1]);
         } else if self.videos.is_empty() {
-            let empty = Paragraph::new("暂无推荐视频")
-                .style(Style::default().fg(Color::Gray))
+            let empty = Paragraph::new("📭 暂无推荐视频")
+                .style(Style::default().fg(Color::Rgb(100, 100, 100)))
                 .alignment(Alignment::Center);
             frame.render_widget(empty, chunks[1]);
         } else {
             self.render_grid(frame, chunks[1]);
         }
 
-        // Help
-        let help = Paragraph::new("←/h ↑/k ↓/j →/l 导航 | Enter 播放 | r 刷新 | q 退出")
-            .style(Style::default().fg(Color::DarkGray))
-            .alignment(Alignment::Center);
+        // Help with styled shortcuts
+        let help_line = Line::from(vec![
+            Span::styled(" [", Style::default().fg(Color::Rgb(60, 60, 60))),
+            Span::styled("←↑↓→", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
+            Span::styled("/", Style::default().fg(Color::Rgb(60, 60, 60))),
+            Span::styled("hjkl", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
+            Span::styled("] ", Style::default().fg(Color::Rgb(60, 60, 60))),
+            Span::styled("导航", Style::default().fg(Color::Rgb(120, 120, 120))),
+            Span::styled("  [", Style::default().fg(Color::Rgb(60, 60, 60))),
+            Span::styled("Enter", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
+            Span::styled("] ", Style::default().fg(Color::Rgb(60, 60, 60))),
+            Span::styled("播放", Style::default().fg(Color::Rgb(120, 120, 120))),
+            Span::styled("  [", Style::default().fg(Color::Rgb(60, 60, 60))),
+            Span::styled("r", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+            Span::styled("] ", Style::default().fg(Color::Rgb(60, 60, 60))),
+            Span::styled("刷新", Style::default().fg(Color::Rgb(120, 120, 120))),
+            Span::styled("  [", Style::default().fg(Color::Rgb(60, 60, 60))),
+            Span::styled("q", Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)),
+            Span::styled("] ", Style::default().fg(Color::Rgb(60, 60, 60))),
+            Span::styled("退出", Style::default().fg(Color::Rgb(120, 120, 120))),
+        ]);
+        let help = Paragraph::new(help_line).alignment(Alignment::Center);
         frame.render_widget(help, chunks[2]);
     }
 
@@ -238,8 +296,10 @@ impl Component for HomePage {
             KeyCode::Char('r') => {
                 self.loading = true;
                 self.videos.clear();
+                self.pending_downloads.clear();
                 Some(AppAction::SwitchToHome)
             }
+            KeyCode::Tab => Some(AppAction::NavNext),
             _ => Some(AppAction::None),
         }
     }
@@ -248,7 +308,10 @@ impl Component for HomePage {
 impl HomePage {
     fn render_grid(&mut self, frame: &mut Frame, area: Rect) {
         let visible_rows = self.visible_rows(area.height);
-        let card_width = area.width / self.columns as u16;
+        
+        // Use fixed card width for consistent layout, cap at available width
+        let fixed_card_width: u16 = 45;
+        let card_width = fixed_card_width.min(area.width / self.columns as u16);
         
         let row_constraints: Vec<Constraint> = (0..visible_rows)
             .map(|_| Constraint::Length(self.card_height))
@@ -270,12 +333,17 @@ impl HomePage {
                 break;
             }
 
+            // Calculate centering margin based on fixed card width
+            let total_cards_width = card_width * self.columns as u16;
+            let margin = row_area.width.saturating_sub(total_cards_width) / 2;
+
             let col_constraints: Vec<Constraint> = (0..self.columns)
                 .map(|_| Constraint::Length(card_width))
                 .collect();
             
             let cols = Layout::default()
                 .direction(Direction::Horizontal)
+                .horizontal_margin(margin)
                 .constraints(col_constraints)
                 .split(*row_area);
 
@@ -296,16 +364,30 @@ impl HomePage {
     }
 
     fn render_video_card(&mut self, frame: &mut Frame, area: Rect, video_idx: usize, is_selected: bool) {
-        let border_style = if is_selected {
-            Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)
+        // Enhanced border styling
+        let (border_style, border_type) = if is_selected {
+            (
+                Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+                BorderType::Rounded
+            )
         } else {
-            Style::default().fg(Color::DarkGray)
+            (
+                Style::default().fg(Color::Rgb(50, 50, 50)),
+                BorderType::Rounded
+            )
+        };
+
+        let title_span = if is_selected {
+            Span::styled(" ▶ ", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))
+        } else {
+            Span::raw("")
         };
 
         let block = Block::default()
             .borders(Borders::ALL)
+            .border_type(border_type)
             .border_style(border_style)
-            .title(if is_selected { "▶" } else { "" });
+            .title(title_span);
         
         let inner = block.inner(area);
         frame.render_widget(block, area);
@@ -325,14 +407,16 @@ impl HomePage {
             let image_widget = StatefulImage::new();
             frame.render_stateful_widget(image_widget, cover_area, cover);
         } else {
-            // Loading placeholder
-            let placeholder = Paragraph::new("📺 加载中...")
-                .style(Style::default().fg(Color::DarkGray))
+            // Loading placeholder with spinner animation hint
+            let is_pending = self.pending_downloads.contains(&video_idx);
+            let placeholder_text = if is_pending { "📺 加载中..." } else { "📺" };
+            let placeholder = Paragraph::new(placeholder_text)
+                .style(Style::default().fg(Color::Rgb(60, 60, 60)))
                 .alignment(Alignment::Center);
             frame.render_widget(placeholder, cover_area);
         }
 
-        // Video info
+        // Video info with enhanced styling
         let info_area = card_chunks[1];
         let card = &self.videos[video_idx];
         
@@ -348,20 +432,26 @@ impl HomePage {
             title.to_string()
         };
 
-        let info_text = format!(
-            "{}\n{}\n{} · {}",
-            display_title, author, views, duration
-        );
-
+        // Multi-styled info text
         let title_style = if is_selected {
             Style::default().fg(Color::White).add_modifier(Modifier::BOLD)
         } else {
-            Style::default().fg(Color::White)
+            Style::default().fg(Color::Rgb(200, 200, 200))
         };
+        
+        let meta_style = Style::default().fg(Color::Rgb(100, 100, 100));
+        
+        let info_text = Text::from(vec![
+            Line::from(Span::styled(&display_title, title_style)),
+            Line::from(Span::styled(author, Style::default().fg(Color::Rgb(150, 150, 150)))),
+            Line::from(vec![
+                Span::styled(&views, meta_style),
+                Span::styled(" · ", meta_style),
+                Span::styled(&duration, Style::default().fg(Color::Rgb(80, 180, 80))),
+            ]),
+        ]);
 
-        let info = Paragraph::new(info_text)
-            .style(title_style)
-            .wrap(Wrap { trim: true });
+        let info = Paragraph::new(info_text).wrap(Wrap { trim: true });
         frame.render_widget(info, info_area);
     }
 }

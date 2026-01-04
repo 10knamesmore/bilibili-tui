@@ -97,16 +97,11 @@ impl LoginPage {
 
     fn status_text(&self) -> (&str, Color) {
         match self.poll_status {
-            QrcodePollStatus::Waiting => ("等待扫描二维码...", Color::Yellow),
-            QrcodePollStatus::Scanned => ("已扫描，请在手机上确认登录", Color::Cyan),
-            QrcodePollStatus::Success => ("登录成功！", Color::Green),
-            QrcodePollStatus::Expired => ("二维码已过期，请按 r 刷新", Color::Red),
-            QrcodePollStatus::Unknown(code) => {
-                // Return a static message for unknown codes
-                match code {
-                    _ => ("未知状态", Color::Gray),
-                }
-            }
+            QrcodePollStatus::Waiting => ("⏳ 等待扫描二维码...", Color::Yellow),
+            QrcodePollStatus::Scanned => ("📱 已扫描，请在手机上确认登录", Color::Cyan),
+            QrcodePollStatus::Success => ("✅ 登录成功！", Color::Green),
+            QrcodePollStatus::Expired => ("❌ 二维码已过期，请按 r 刷新", Color::Red),
+            QrcodePollStatus::Unknown(_) => ("❓ 未知状态", Color::Rgb(100, 100, 100)),
         }
     }
 }
@@ -130,46 +125,82 @@ impl Component for LoginPage {
             ])
             .split(area);
 
-        // Title
-        let title = Paragraph::new("Bilibili 登录")
-            .block(Block::default().borders(Borders::ALL).title("Login"))
-            .style(Style::default().fg(Color::Cyan))
+        // Title with Bilibili branding
+        let title_line = Line::from(vec![
+            Span::styled(" ", Style::default()),
+            Span::styled("B", Style::default().fg(Color::Rgb(251, 114, 153)).add_modifier(Modifier::BOLD)),
+            Span::styled("ilibili ", Style::default().fg(Color::White).add_modifier(Modifier::BOLD)),
+            Span::styled("登录", Style::default().fg(Color::Cyan)),
+        ]);
+        
+        let title = Paragraph::new(title_line)
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .border_type(BorderType::Rounded)
+                    .border_style(Style::default().fg(Color::Rgb(60, 60, 60)))
+                    .title(Span::styled(" Login ", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)))
+            )
             .alignment(Alignment::Center);
         frame.render_widget(title, chunks[0]);
 
         // QR code area
+        let qr_block = Block::default()
+            .borders(Borders::ALL)
+            .border_type(BorderType::Rounded)
+            .border_style(Style::default().fg(Color::Rgb(60, 60, 60)))
+            .title(Span::styled(" 扫码登录 ", Style::default().fg(Color::Rgb(150, 150, 150))));
+        
         if let Some(error) = &self.error_message {
-            let error_widget = Paragraph::new(error.as_str())
+            let error_widget = Paragraph::new(format!("❌ {}", error))
                 .style(Style::default().fg(Color::Red))
                 .alignment(Alignment::Center)
-                .block(Block::default().borders(Borders::ALL));
+                .block(qr_block);
             frame.render_widget(error_widget, chunks[1]);
         } else if let Some(qrcode_data) = &self.qrcode_data {
+            frame.render_widget(qr_block.clone(), chunks[1]);
+            let inner_area = qr_block.inner(chunks[1]);
+            
             if let Ok(qr_code) = QrCode::new(&qrcode_data.url) {
                 // Center the QR code
-                let qr_area = centered_rect(60, 90, chunks[1]);
+                let qr_area = centered_rect(60, 90, inner_area);
                 let qr_widget = QrCodeWidget::new(qr_code);
                 frame.render_widget(qr_widget, qr_area);
             }
         } else {
-            let loading = Paragraph::new("加载中...")
-                .style(Style::default().fg(Color::Yellow))
-                .alignment(Alignment::Center);
+            let loading = Paragraph::new("⏳ 加载中...")
+                .style(Style::default().fg(Color::Yellow).add_modifier(Modifier::ITALIC))
+                .alignment(Alignment::Center)
+                .block(qr_block);
             frame.render_widget(loading, chunks[1]);
         }
 
-        // Status
+        // Status with enhanced styling
         let (status_text, status_color) = self.status_text();
         let status = Paragraph::new(status_text)
-            .style(Style::default().fg(status_color))
+            .style(Style::default().fg(status_color).add_modifier(Modifier::BOLD))
             .alignment(Alignment::Center)
-            .block(Block::default().borders(Borders::ALL).title("状态"));
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .border_type(BorderType::Rounded)
+                    .border_style(Style::default().fg(Color::Rgb(60, 60, 60)))
+                    .title(Span::styled(" 状态 ", Style::default().fg(Color::Rgb(150, 150, 150))))
+            );
         frame.render_widget(status, chunks[2]);
 
-        // Help
-        let help = Paragraph::new("按 r 刷新二维码 | q 退出")
-            .style(Style::default().fg(Color::DarkGray))
-            .alignment(Alignment::Center);
+        // Help with styled shortcuts
+        let help_line = Line::from(vec![
+            Span::styled(" [", Style::default().fg(Color::Rgb(60, 60, 60))),
+            Span::styled("r", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+            Span::styled("] ", Style::default().fg(Color::Rgb(60, 60, 60))),
+            Span::styled("刷新二维码", Style::default().fg(Color::Rgb(120, 120, 120))),
+            Span::styled("  [", Style::default().fg(Color::Rgb(60, 60, 60))),
+            Span::styled("q", Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)),
+            Span::styled("] ", Style::default().fg(Color::Rgb(60, 60, 60))),
+            Span::styled("退出", Style::default().fg(Color::Rgb(120, 120, 120))),
+        ]);
+        let help = Paragraph::new(help_line).alignment(Alignment::Center);
         frame.render_widget(help, chunks[3]);
     }
 

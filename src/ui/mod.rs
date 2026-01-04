@@ -1,8 +1,14 @@
+mod dynamic;
 mod home;
 mod login;
+mod search;
+mod sidebar;
 
+pub use dynamic::DynamicPage;
 pub use home::HomePage;
 pub use login::LoginPage;
+pub use search::SearchPage;
+pub use sidebar::{NavItem, Sidebar};
 
 use crate::app::AppAction;
 use ratatui::{crossterm::event::KeyCode, Frame, prelude::Rect};
@@ -17,4 +23,6 @@ pub trait Component {
 pub enum Page {
     Login(LoginPage),
     Home(HomePage),
+    Search(SearchPage),
+    Dynamic(DynamicPage),
 }

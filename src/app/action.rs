@@ -13,6 +13,14 @@ pub enum AppAction {
     LoginSuccess(Credentials),
     /// Play a video by bvid
     PlayVideo(String),
+    /// Navigate to next sidebar item
+    NavNext,
+    /// Navigate to previous sidebar item
+    NavPrev,
+    /// Search for videos
+    Search(String),
+    /// Refresh dynamic feed
+    RefreshDynamic,
     /// No action
     None,
 }
