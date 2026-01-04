@@ -1,13 +1,18 @@
-use bilibili_tui::ui::App;
+use bilibili_tui::app::App;
 use std::io;
 
 #[tokio::main]
 async fn main() -> io::Result<()> {
+    // Initialize terminal
     let mut terminal = ratatui::init();
+    terminal.clear()?;
 
-    let app_result = App::new().run(&mut terminal).await;
+    // Run the application
+    let app = App::new();
+    let result = app.run(&mut terminal).await;
 
+    // Restore terminal
     ratatui::restore();
 
-    app_result
+    result
 }

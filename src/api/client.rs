@@ -1,12 +1,18 @@
+//! Bilibili API Client with cookie management and WBI signing
+
+use super::wbi;
+use crate::storage::Credentials;
 use anyhow::Result;
+use reqwest::header::{HeaderMap, HeaderValue, COOKIE, REFERER, USER_AGENT};
 use reqwest::Client;
 use serde::Deserialize;
+use std::sync::RwLock;
+
+const UA: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 
 pub enum BilibiliApiDomain {
     Main,
     Passport,
-    Vc,
-    Live,
 }
 
 impl BilibiliApiDomain {
@@ -14,53 +20,207 @@ impl BilibiliApiDomain {
         match self {
             BilibiliApiDomain::Main => "https://api.bilibili.com",
             BilibiliApiDomain::Passport => "https://passport.bilibili.com",
-            BilibiliApiDomain::Vc => "https://vc.bilibili.com",
-            BilibiliApiDomain::Live => "https://live.bilibili.com",
         }
     }
 }
 
 #[derive(Debug, Deserialize)]
-struct ApiResponse<T> {
-    code: i32,
-    message: String,
-    ttl: Option<i32>,
-    data: Option<T>,
-}
-pub struct ApiClient {
-    client: Client,
+pub struct ApiResponse<T> {
+    pub code: i32,
+    pub message: String,
+    #[allow(dead_code)]
+    pub ttl: Option<i32>,
+    pub data: Option<T>,
 }
 
-#[derive(Debug, Deserialize)]
-pub struct QrcodeData {
-    pub url: String,
-    pub qrcode_key: String,
+/// WBI keys for signing requests
+#[derive(Debug, Clone)]
+pub struct WbiKeys {
+    pub img_key: String,
+    pub sub_key: String,
+}
+
+pub struct ApiClient {
+    client: Client,
+    cookies: RwLock<Option<String>>,
+    wbi_keys: RwLock<Option<WbiKeys>>,
 }
 
 impl ApiClient {
     pub fn new() -> Self {
         Self {
-            client: Client::new(),
+            client: Client::builder()
+                .default_headers(Self::default_headers())
+                .build()
+                .expect("Failed to create HTTP client"),
+            cookies: RwLock::new(None),
+            wbi_keys: RwLock::new(None),
         }
+    }
+
+    pub fn with_cookies(credentials: &Credentials) -> Self {
+        let client = Self::new();
+        client.set_credentials(credentials);
+        client
+    }
+
+    fn default_headers() -> HeaderMap {
+        let mut headers = HeaderMap::new();
+        headers.insert(USER_AGENT, HeaderValue::from_static(UA));
+        headers.insert(REFERER, HeaderValue::from_static("https://www.bilibili.com/"));
+        headers
+    }
+
+    pub fn set_credentials(&self, credentials: &Credentials) {
+        let cookie_str = format!(
+            "SESSDATA={}; bili_jct={}; DedeUserID={}",
+            credentials.sessdata, credentials.bili_jct, credentials.dede_user_id
+        );
+        *self.cookies.write().unwrap() = Some(cookie_str);
     }
 
     fn build_url(&self, domain: BilibiliApiDomain, endpoint: &str) -> String {
         format!("{}{}", domain.as_str(), endpoint)
     }
 
-    pub async fn get_qrcode_data(&self) -> Result<QrcodeData> {
+    /// Make a GET request
+    pub async fn get<T: for<'de> Deserialize<'de>>(&self, url: &str) -> Result<ApiResponse<T>> {
+        let mut req = self.client.get(url);
+        if let Some(ref cookies) = *self.cookies.read().unwrap() {
+            req = req.header(COOKIE, cookies.as_str());
+        }
+        let resp = req.send().await?;
+        let api_resp: ApiResponse<T> = resp.json().await?;
+        Ok(api_resp)
+    }
+
+    /// Make a WBI-signed GET request
+    pub async fn get_with_wbi<T: for<'de> Deserialize<'de>>(
+        &self,
+        base_url: &str,
+        params: Vec<(&str, String)>,
+    ) -> Result<ApiResponse<T>> {
+        // Ensure we have WBI keys
+        self.ensure_wbi_keys().await?;
+
+        let keys = self.wbi_keys.read().unwrap();
+        let keys = keys.as_ref().unwrap();
+
+        let query = wbi::encode_wbi(params, &keys.img_key, &keys.sub_key);
+        let url = format!("{}?{}", base_url, query);
+
+        self.get(&url).await
+    }
+
+    /// Fetch WBI keys from nav API
+    async fn ensure_wbi_keys(&self) -> Result<()> {
+        if self.wbi_keys.read().unwrap().is_some() {
+            return Ok(());
+        }
+
+        #[derive(Deserialize)]
+        struct WbiImg {
+            img_url: String,
+            sub_url: String,
+        }
+
+        #[derive(Deserialize)]
+        struct NavData {
+            wbi_img: WbiImg,
+        }
+
+        let url = self.build_url(BilibiliApiDomain::Main, "/x/web-interface/nav");
+        let resp: ApiResponse<NavData> = self.get(&url).await?;
+
+        if let Some(data) = resp.data {
+            let img_key = wbi::extract_key_from_url(&data.wbi_img.img_url)
+                .ok_or_else(|| anyhow::anyhow!("Failed to extract img_key"))?;
+            let sub_key = wbi::extract_key_from_url(&data.wbi_img.sub_url)
+                .ok_or_else(|| anyhow::anyhow!("Failed to extract sub_key"))?;
+
+            *self.wbi_keys.write().unwrap() = Some(WbiKeys { img_key, sub_key });
+        }
+
+        Ok(())
+    }
+
+    // Auth APIs
+    pub async fn get_qrcode_data(&self) -> Result<super::auth::QrcodeData> {
         let url = self.build_url(
             BilibiliApiDomain::Passport,
             "/x/passport-login/web/qrcode/generate",
         );
-        let resp = self.client.get(&url).send().await?;
-        let api_resp: ApiResponse<QrcodeData> = resp.json().await?;
-        match (api_resp.code, api_resp.message, api_resp.data) {
-            (0, _, Some(data)) => Ok(data),
-            (code, message, _) if code != 0 => {
-                Err(anyhow::anyhow!("API Error {}: {}", code, message))
-            }
-            _ => Err(anyhow::anyhow!("No data in API response")),
+        let resp: ApiResponse<super::auth::QrcodeData> = self.get(&url).await?;
+        resp.data
+            .ok_or_else(|| anyhow::anyhow!("No data in QR code response"))
+    }
+
+    pub async fn poll_qrcode(&self, qrcode_key: &str) -> Result<super::auth::QrcodePollResult> {
+        let url = format!(
+            "{}/x/passport-login/web/qrcode/poll?qrcode_key={}",
+            BilibiliApiDomain::Passport.as_str(),
+            qrcode_key
+        );
+
+        let mut req = self.client.get(&url);
+        if let Some(ref cookies) = *self.cookies.read().unwrap() {
+            req = req.header(COOKIE, cookies.as_str());
         }
+
+        let resp = req.send().await?;
+
+        // Extract cookies from response headers
+        let mut new_cookies = Vec::new();
+        for cookie in resp.cookies() {
+            new_cookies.push((cookie.name().to_string(), cookie.value().to_string()));
+        }
+
+        let api_resp: ApiResponse<super::auth::QrcodePollData> = resp.json().await?;
+
+        Ok(super::auth::QrcodePollResult {
+            data: api_resp.data,
+            cookies: new_cookies,
+        })
+    }
+
+    // Recommendation API
+    pub async fn get_recommendations(&self) -> Result<Vec<super::recommend::VideoItem>> {
+        let url = self.build_url(
+            BilibiliApiDomain::Main,
+            "/x/web-interface/wbi/index/top/feed/rcmd",
+        );
+
+        let params = vec![
+            ("fresh_type", "4".to_string()),
+            ("ps", "20".to_string()),
+            ("fresh_idx", "1".to_string()),
+            ("fresh_idx_1h", "1".to_string()),
+        ];
+
+        let resp: ApiResponse<super::recommend::RecommendData> =
+            self.get_with_wbi(&url, params).await?;
+
+        Ok(resp
+            .data
+            .map(|d| d.item.into_iter().filter(|v| v.bvid.is_some()).collect())
+            .unwrap_or_default())
+    }
+
+    // Video API
+    pub async fn get_video_info(&self, bvid: &str) -> Result<super::video::VideoInfo> {
+        let url = format!(
+            "{}/x/web-interface/view?bvid={}",
+            BilibiliApiDomain::Main.as_str(),
+            bvid
+        );
+        let resp: ApiResponse<super::video::VideoInfo> = self.get(&url).await?;
+        resp.data
+            .ok_or_else(|| anyhow::anyhow!("No data in video info response"))
+    }
+}
+
+impl Default for ApiClient {
+    fn default() -> Self {
+        Self::new()
     }
 }
