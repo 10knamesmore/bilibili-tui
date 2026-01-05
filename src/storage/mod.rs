@@ -16,7 +16,10 @@ pub struct Credentials {
 }
 
 impl Credentials {
-    pub fn from_cookies(cookies: &[(String, String)], refresh_token: Option<String>) -> Option<Self> {
+    pub fn from_cookies(
+        cookies: &[(String, String)],
+        refresh_token: Option<String>,
+    ) -> Option<Self> {
         let mut sessdata = None;
         let mut bili_jct = None;
         let mut dede_user_id = None;
@@ -47,11 +50,11 @@ fn get_config_dir() -> Result<PathBuf> {
     let config_dir = dirs::config_dir()
         .ok_or_else(|| anyhow::anyhow!("Could not find config directory"))?
         .join("bilibili-tui");
-    
+
     if !config_dir.exists() {
         fs::create_dir_all(&config_dir)?;
     }
-    
+
     Ok(config_dir)
 }
 
@@ -79,7 +82,7 @@ pub fn load_credentials() -> Result<Credentials> {
 /// Export cookies in Netscape format for yt-dlp
 pub fn export_cookies_for_ytdlp(credentials: &Credentials) -> Result<PathBuf> {
     let path = get_config_dir()?.join("cookies.txt");
-    
+
     let content = format!(
         "# Netscape HTTP Cookie File\n\
         .bilibili.com\tTRUE\t/\tTRUE\t0\tSESSDATA\t{}\n\
@@ -87,7 +90,7 @@ pub fn export_cookies_for_ytdlp(credentials: &Credentials) -> Result<PathBuf> {
         .bilibili.com\tTRUE\t/\tFALSE\t0\tDedeUserID\t{}\n",
         credentials.sessdata, credentials.bili_jct, credentials.dede_user_id
     );
-    
+
     fs::write(&path, content)?;
     Ok(path)
 }

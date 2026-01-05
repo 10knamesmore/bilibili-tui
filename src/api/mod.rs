@@ -8,4 +8,3 @@ pub mod video;
 pub mod wbi;
 
 pub use client::ApiClient;
-

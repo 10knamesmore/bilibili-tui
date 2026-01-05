@@ -67,7 +67,10 @@ impl ApiClient {
     fn default_headers() -> HeaderMap {
         let mut headers = HeaderMap::new();
         headers.insert(USER_AGENT, HeaderValue::from_static(UA));
-        headers.insert(REFERER, HeaderValue::from_static("https://www.bilibili.com/"));
+        headers.insert(
+            REFERER,
+            HeaderValue::from_static("https://www.bilibili.com/"),
+        );
         headers
     }
 
@@ -103,10 +106,11 @@ impl ApiClient {
         // Ensure we have WBI keys
         self.ensure_wbi_keys().await?;
 
-        let keys = self.wbi_keys.read().unwrap();
-        let keys = keys.as_ref().unwrap();
-
-        let query = wbi::encode_wbi(params, &keys.img_key, &keys.sub_key);
+        let query = {
+            let keys = self.wbi_keys.read().unwrap();
+            let keys = keys.as_ref().unwrap();
+            wbi::encode_wbi(params, &keys.img_key, &keys.sub_key)
+        };
         let url = format!("{}?{}", base_url, query);
 
         self.get(&url).await
@@ -219,11 +223,12 @@ impl ApiClient {
     }
 
     // Search API
-    pub async fn search_videos(&self, keyword: &str, page: i32) -> Result<super::search::SearchData> {
-        let url = self.build_url(
-            BilibiliApiDomain::Main,
-            "/x/web-interface/wbi/search/type",
-        );
+    pub async fn search_videos(
+        &self,
+        keyword: &str,
+        page: i32,
+    ) -> Result<super::search::SearchData> {
+        let url = self.build_url(BilibiliApiDomain::Main, "/x/web-interface/wbi/search/type");
 
         let params = vec![
             ("search_type", "video".to_string()),
@@ -242,14 +247,34 @@ impl ApiClient {
     }
 
     // Dynamic Feed API
-    pub async fn get_dynamic_feed(&self, offset: Option<&str>) -> Result<super::dynamic::DynamicFeedData> {
+    pub async fn get_dynamic_feed(
+        &self,
+        offset: Option<&str>,
+        feed_type: Option<&str>,
+        host_mid: Option<i64>,
+    ) -> Result<super::dynamic::DynamicFeedData> {
         let mut url = format!(
-            "{}/x/polymer/web-dynamic/v1/feed/all?type=video",
+            "{}/x/polymer/web-dynamic/v1/feed/all",
             BilibiliApiDomain::Main.as_str()
         );
-        
+
+        let mut params = Vec::new();
+
+        if let Some(ft) = feed_type {
+            params.push(format!("type={}", ft));
+        }
+
         if let Some(off) = offset {
-            url.push_str(&format!("&offset={}", off));
+            params.push(format!("offset={}", off));
+        }
+
+        if let Some(mid) = host_mid {
+            params.push(format!("host_mid={}", mid));
+        }
+
+        if !params.is_empty() {
+            url.push('?');
+            url.push_str(&params.join("&"));
         }
 
         let resp: ApiResponse<super::dynamic::DynamicFeedData> = self.get(&url).await?;
@@ -259,6 +284,41 @@ impl ApiClient {
             has_more: Some(false),
             update_num: Some(0),
         }))
+    }
+
+    // Get following users (关注列表)
+    pub async fn get_followings(
+        &self,
+        vmid: i64,
+        ps: i32,
+        pn: i32,
+    ) -> Result<super::dynamic::FollowingsData> {
+        let url = format!(
+            "{}/x/relation/followings?vmid={}&ps={}&pn={}",
+            BilibiliApiDomain::Main.as_str(),
+            vmid,
+            ps,
+            pn
+        );
+
+        let resp: ApiResponse<super::dynamic::FollowingsData> = self.get(&url).await?;
+        Ok(resp.data.unwrap_or(super::dynamic::FollowingsData {
+            list: None,
+            total: Some(0),
+        }))
+    }
+
+    /// Get dynamic portal with frequently watched UP masters (常看UP主)
+    pub async fn get_dynamic_portal(&self) -> Result<super::dynamic::PortalData> {
+        let url = format!(
+            "{}/x/polymer/web-dynamic/v1/portal",
+            BilibiliApiDomain::Main.as_str()
+        );
+
+        let resp: ApiResponse<super::dynamic::PortalData> = self.get(&url).await?;
+        Ok(resp
+            .data
+            .unwrap_or(super::dynamic::PortalData { up_list: None }))
     }
 
     // Comments API
@@ -279,7 +339,10 @@ impl ApiClient {
     }
 
     // Related Videos API
-    pub async fn get_related_videos(&self, bvid: &str) -> Result<Vec<super::video::RelatedVideoItem>> {
+    pub async fn get_related_videos(
+        &self,
+        bvid: &str,
+    ) -> Result<Vec<super::video::RelatedVideoItem>> {
         let url = format!(
             "{}/x/web-interface/archive/related?bvid={}",
             BilibiliApiDomain::Main.as_str(),
@@ -291,7 +354,10 @@ impl ApiClient {
     }
 
     // Extended Recommendations API with pagination
-    pub async fn get_recommendations_paged(&self, fresh_idx: i32) -> Result<Vec<super::recommend::VideoItem>> {
+    pub async fn get_recommendations_paged(
+        &self,
+        fresh_idx: i32,
+    ) -> Result<Vec<super::recommend::VideoItem>> {
         let url = self.build_url(
             BilibiliApiDomain::Main,
             "/x/web-interface/wbi/index/top/feed/rcmd",

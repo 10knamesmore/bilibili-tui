@@ -84,7 +84,7 @@ impl CommentItem {
                 .map(|d| d.as_secs() as i64)
                 .unwrap_or(0);
             let diff = now - ctime;
-            
+
             if diff < 60 {
                 "刚刚".to_string()
             } else if diff < 3600 {

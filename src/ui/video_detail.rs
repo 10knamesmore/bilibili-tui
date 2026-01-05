@@ -5,11 +5,7 @@ use crate::api::client::ApiClient;
 use crate::api::comment::CommentItem;
 use crate::api::video::{RelatedVideoItem, VideoInfo};
 use crate::app::AppAction;
-use ratatui::{
-    crossterm::event::KeyCode,
-    prelude::*,
-    widgets::*,
-};
+use ratatui::{crossterm::event::KeyCode, prelude::*, widgets::*};
 
 #[derive(Clone, Copy, PartialEq)]
 pub enum DetailFocus {
@@ -124,7 +120,10 @@ impl VideoDetailPage {
             .borders(Borders::ALL)
             .border_type(BorderType::Rounded)
             .border_style(Style::default().fg(Color::Rgb(60, 60, 60)))
-            .title(Span::styled(" 📹 视频信息 ", Style::default().fg(Color::Cyan)));
+            .title(Span::styled(
+                " 📹 视频信息 ",
+                Style::default().fg(Color::Cyan),
+            ));
 
         let inner = block.inner(area);
         frame.render_widget(block, area);
@@ -141,8 +140,11 @@ impl VideoDetailPage {
                 .split(inner);
 
             // Title
-            let title = Paragraph::new(info.title.clone())
-                .style(Style::default().fg(Color::White).add_modifier(Modifier::BOLD));
+            let title = Paragraph::new(info.title.clone()).style(
+                Style::default()
+                    .fg(Color::White)
+                    .add_modifier(Modifier::BOLD),
+            );
             frame.render_widget(title, chunks[0]);
 
             // Author
@@ -153,15 +155,30 @@ impl VideoDetailPage {
             // Stats
             let stats = Paragraph::new(Line::from(vec![
                 Span::styled("▶ ", Style::default().fg(Color::Rgb(80, 80, 80))),
-                Span::styled(info.stat.format_views(), Style::default().fg(Color::Rgb(150, 150, 150))),
+                Span::styled(
+                    info.stat.format_views(),
+                    Style::default().fg(Color::Rgb(150, 150, 150)),
+                ),
                 Span::styled(" · 💬 ", Style::default().fg(Color::Rgb(80, 80, 80))),
-                Span::styled(info.stat.format_danmaku(), Style::default().fg(Color::Rgb(150, 150, 150))),
+                Span::styled(
+                    info.stat.format_danmaku(),
+                    Style::default().fg(Color::Rgb(150, 150, 150)),
+                ),
                 Span::styled(" · 👍 ", Style::default().fg(Color::Rgb(80, 80, 80))),
-                Span::styled(info.stat.format_like(), Style::default().fg(Color::Rgb(150, 150, 150))),
+                Span::styled(
+                    info.stat.format_like(),
+                    Style::default().fg(Color::Rgb(150, 150, 150)),
+                ),
                 Span::styled(" · 💰 ", Style::default().fg(Color::Rgb(80, 80, 80))),
-                Span::styled(info.stat.format_coin(), Style::default().fg(Color::Rgb(150, 150, 150))),
+                Span::styled(
+                    info.stat.format_coin(),
+                    Style::default().fg(Color::Rgb(150, 150, 150)),
+                ),
                 Span::styled(" · ⭐ ", Style::default().fg(Color::Rgb(80, 80, 80))),
-                Span::styled(info.stat.format_favorite(), Style::default().fg(Color::Rgb(150, 150, 150))),
+                Span::styled(
+                    info.stat.format_favorite(),
+                    Style::default().fg(Color::Rgb(150, 150, 150)),
+                ),
             ]));
             frame.render_widget(stats, chunks[2]);
 
@@ -200,7 +217,11 @@ impl VideoDetailPage {
             .border_style(border_style)
             .title(Span::styled(
                 format!(" 💬 评论 ({}) ", self.comments.len()),
-                Style::default().fg(if is_focused { Color::Cyan } else { Color::Rgb(150, 150, 150) }),
+                Style::default().fg(if is_focused {
+                    Color::Cyan
+                } else {
+                    Color::Rgb(150, 150, 150)
+                }),
             ));
 
         let inner = block.inner(area);
@@ -218,23 +239,35 @@ impl VideoDetailPage {
         let item_height = 3;
         let visible_count = (inner.height as usize / item_height).max(1);
 
-        let items: Vec<ListItem> = self.comments
+        let items: Vec<ListItem> = self
+            .comments
             .iter()
             .skip(self.comment_scroll)
             .take(visible_count)
             .map(|comment| {
                 let lines = vec![
                     Line::from(vec![
-                        Span::styled(comment.author_name(), Style::default().fg(Color::Rgb(251, 114, 153))),
-                        Span::styled(format!("  {}", comment.format_time()), Style::default().fg(Color::Rgb(80, 80, 80))),
+                        Span::styled(
+                            comment.author_name(),
+                            Style::default().fg(Color::Rgb(251, 114, 153)),
+                        ),
+                        Span::styled(
+                            format!("  {}", comment.format_time()),
+                            Style::default().fg(Color::Rgb(80, 80, 80)),
+                        ),
                     ]),
-                    Line::from(vec![
-                        Span::styled(truncate_str(comment.message(), 60), Style::default().fg(Color::White)),
-                    ]),
-                    Line::from(vec![
-                        Span::styled(format!("👍 {}  💬 {} 回复", comment.format_like(), comment.reply_count()), 
-                            Style::default().fg(Color::Rgb(80, 80, 80))),
-                    ]),
+                    Line::from(vec![Span::styled(
+                        truncate_str(comment.message(), 60),
+                        Style::default().fg(Color::White),
+                    )]),
+                    Line::from(vec![Span::styled(
+                        format!(
+                            "👍 {}  💬 {} 回复",
+                            comment.format_like(),
+                            comment.reply_count()
+                        ),
+                        Style::default().fg(Color::Rgb(80, 80, 80)),
+                    )]),
                 ];
                 ListItem::new(lines)
             })
@@ -258,7 +291,11 @@ impl VideoDetailPage {
             .border_style(border_style)
             .title(Span::styled(
                 format!(" 📺 相关推荐 ({}) ", self.related_videos.len()),
-                Style::default().fg(if is_focused { Color::Cyan } else { Color::Rgb(150, 150, 150) }),
+                Style::default().fg(if is_focused {
+                    Color::Cyan
+                } else {
+                    Color::Rgb(150, 150, 150)
+                }),
             ));
 
         let inner = block.inner(area);
@@ -274,7 +311,8 @@ impl VideoDetailPage {
 
         let visible_count = inner.height as usize;
 
-        let items: Vec<ListItem> = self.related_videos
+        let items: Vec<ListItem> = self
+            .related_videos
             .iter()
             .enumerate()
             .skip(self.related_scroll)
@@ -282,19 +320,23 @@ impl VideoDetailPage {
             .map(|(i, video)| {
                 let is_selected = is_focused && i == self.related_scroll;
                 let style = if is_selected {
-                    Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)
+                    Style::default()
+                        .fg(Color::Cyan)
+                        .add_modifier(Modifier::BOLD)
                 } else {
                     Style::default().fg(Color::White)
                 };
                 let prefix = if is_selected { "▶ " } else { "  " };
                 let title = video.title.as_deref().unwrap_or("无标题");
                 let display_title = truncate_str(title, 30);
-                
+
                 ListItem::new(Line::from(vec![
                     Span::styled(prefix, style),
                     Span::styled(display_title, style),
-                    Span::styled(format!("  {} · {}", video.author_name(), video.format_views()), 
-                        Style::default().fg(Color::Rgb(100, 100, 100))),
+                    Span::styled(
+                        format!("  {} · {}", video.author_name(), video.format_views()),
+                        Style::default().fg(Color::Rgb(100, 100, 100)),
+                    ),
                 ]))
             })
             .collect();
@@ -309,9 +351,9 @@ impl Component for VideoDetailPage {
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
-                Constraint::Length(6),  // Video info
-                Constraint::Min(10),    // Comments + Related
-                Constraint::Length(2),  // Help
+                Constraint::Length(6), // Video info
+                Constraint::Min(10),   // Comments + Related
+                Constraint::Length(2), // Help
             ])
             .split(area);
 
@@ -322,21 +364,29 @@ impl Component for VideoDetailPage {
             let loading = Paragraph::new("⏳ 加载中...")
                 .style(Style::default().fg(Color::Yellow))
                 .alignment(Alignment::Center)
-                .block(Block::default().borders(Borders::ALL).border_type(BorderType::Rounded));
+                .block(
+                    Block::default()
+                        .borders(Borders::ALL)
+                        .border_type(BorderType::Rounded),
+                );
             frame.render_widget(loading, chunks[1]);
         } else if let Some(ref error) = self.error_message {
             let error_widget = Paragraph::new(format!("❌ {}", error))
                 .style(Style::default().fg(Color::Red))
                 .alignment(Alignment::Center)
-                .block(Block::default().borders(Borders::ALL).border_type(BorderType::Rounded));
+                .block(
+                    Block::default()
+                        .borders(Borders::ALL)
+                        .border_type(BorderType::Rounded),
+                );
             frame.render_widget(error_widget, chunks[1]);
         } else {
             // Comments and Related split
             let content_chunks = Layout::default()
                 .direction(Direction::Horizontal)
                 .constraints([
-                    Constraint::Percentage(60),  // Comments
-                    Constraint::Percentage(40),  // Related
+                    Constraint::Percentage(60), // Comments
+                    Constraint::Percentage(40), // Related
                 ])
                 .split(chunks[1]);
 
@@ -355,9 +405,7 @@ impl Component for VideoDetailPage {
     fn handle_input(&mut self, key: KeyCode) -> Option<AppAction> {
         match key {
             KeyCode::Char('q') | KeyCode::Esc => Some(AppAction::BackToList),
-            KeyCode::Char('p') => {
-                Some(AppAction::PlayVideo(self.bvid.clone()))
-            }
+            KeyCode::Char('p') => Some(AppAction::PlayVideo(self.bvid.clone())),
             KeyCode::Tab => {
                 self.focus = match self.focus {
                     DetailFocus::Comments => DetailFocus::Related,
@@ -413,7 +461,10 @@ impl Component for VideoDetailPage {
 
 fn truncate_str(s: &str, max_len: usize) -> String {
     if s.chars().count() > max_len {
-        s.chars().take(max_len.saturating_sub(3)).collect::<String>() + "..."
+        s.chars()
+            .take(max_len.saturating_sub(3))
+            .collect::<String>()
+            + "..."
     } else {
         s.to_string()
     }

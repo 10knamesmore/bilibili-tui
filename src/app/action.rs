@@ -31,7 +31,10 @@ pub enum AppAction {
     LoadMoreSearch,
     /// Load more dynamic items
     LoadMoreDynamic,
+    /// Switch dynamic tab
+    SwitchDynamicTab(crate::ui::DynamicTab),
+    /// Select UP master (0 = all, 1+ = specific UP)
+    SelectUpMaster(usize),
     /// No action
     None,
 }
-

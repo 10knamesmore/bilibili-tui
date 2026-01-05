@@ -5,11 +5,7 @@ use crate::api::client::ApiClient;
 use crate::api::recommend::VideoItem;
 use crate::app::AppAction;
 use image::DynamicImage;
-use ratatui::{
-    crossterm::event::KeyCode,
-    prelude::*,
-    widgets::*,
-};
+use ratatui::{crossterm::event::KeyCode, prelude::*, widgets::*};
 use ratatui_image::{picker::Picker, protocol::StatefulProtocol, StatefulImage};
 use std::collections::HashSet;
 use std::sync::Arc;
@@ -49,10 +45,10 @@ impl HomePage {
         // Try to detect terminal graphics protocol (Kitty/Sixel/iTerm2)
         // Fall back to halfblocks if detection fails
         let picker = Arc::new(Picker::from_query_stdio().unwrap_or_else(|_| Picker::halfblocks()));
-        
+
         // Create channel for background image downloads
         let (cover_tx, cover_rx) = mpsc::channel(32);
-        
+
         Self {
             videos: Vec::new(),
             selected_index: 0,
@@ -80,10 +76,7 @@ impl HomePage {
             Ok(videos) => {
                 self.videos = videos
                     .into_iter()
-                    .map(|video| VideoCard {
-                        video,
-                        cover: None,
-                    })
+                    .map(|video| VideoCard { video, cover: None })
                     .collect();
                 self.loading = false;
                 self.selected_index = 0;
@@ -107,10 +100,7 @@ impl HomePage {
         match api_client.get_recommendations_paged(self.fresh_idx).await {
             Ok(videos) => {
                 for video in videos {
-                    self.videos.push(VideoCard {
-                        video,
-                        cover: None,
-                    });
+                    self.videos.push(VideoCard { video, cover: None });
                 }
                 self.loading_more = false;
             }
@@ -139,23 +129,28 @@ impl HomePage {
         // Calculate visible range
         let start = self.scroll_row * self.columns;
         let end = (start + self.columns * 4).min(self.videos.len()); // Prefetch extra rows
-        
+
         for idx in start..end {
             // Skip if already has cover or is pending
             if self.videos[idx].cover.is_some() || self.pending_downloads.contains(&idx) {
                 continue;
             }
-            
+
             if let Some(pic_url) = self.videos[idx].video.pic.clone() {
                 self.pending_downloads.insert(idx);
                 let tx = self.cover_tx.clone();
                 let picker = Arc::clone(&self.picker);
-                
+
                 // Spawn background task
                 tokio::spawn(async move {
                     if let Some(img) = Self::download_image(&pic_url).await {
                         let protocol = picker.new_resize_protocol(img);
-                        let _ = tx.send(CoverResult { index: idx, protocol }).await;
+                        let _ = tx
+                            .send(CoverResult {
+                                index: idx,
+                                protocol,
+                            })
+                            .await;
                     }
                 });
             }
@@ -198,7 +193,7 @@ impl HomePage {
     }
 
     fn total_rows(&self) -> usize {
-        (self.videos.len() + self.columns - 1) / self.columns
+        self.videos.len().div_ceil(self.columns)
     }
 }
 
@@ -222,25 +217,49 @@ impl Component for HomePage {
         // Header with enhanced styling
         let title = Line::from(vec![
             Span::styled(" ", Style::default()),
-            Span::styled("B", Style::default().fg(Color::Rgb(251, 114, 153)).add_modifier(Modifier::BOLD)),
-            Span::styled("ilibili ", Style::default().fg(Color::White).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                "B",
+                Style::default()
+                    .fg(Color::Rgb(251, 114, 153))
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(
+                "ilibili ",
+                Style::default()
+                    .fg(Color::White)
+                    .add_modifier(Modifier::BOLD),
+            ),
             Span::styled("推荐", Style::default().fg(Color::Cyan)),
             Span::styled(" │ ", Style::default().fg(Color::Rgb(80, 80, 80))),
-            Span::styled(format!("{}", self.videos.len()), Style::default().fg(Color::Yellow)),
+            Span::styled(
+                format!("{}", self.videos.len()),
+                Style::default().fg(Color::Yellow),
+            ),
             Span::styled(" 个视频 │ ", Style::default().fg(Color::Rgb(80, 80, 80))),
-            Span::styled(format!("{}", self.selected_row() + 1), Style::default().fg(Color::Green)),
+            Span::styled(
+                format!("{}", self.selected_row() + 1),
+                Style::default().fg(Color::Green),
+            ),
             Span::styled("/", Style::default().fg(Color::Rgb(80, 80, 80))),
-            Span::styled(format!("{}", self.total_rows()), Style::default().fg(Color::Green)),
+            Span::styled(
+                format!("{}", self.total_rows()),
+                Style::default().fg(Color::Green),
+            ),
             Span::styled(" 行 ", Style::default().fg(Color::Rgb(80, 80, 80))),
         ]);
-        
+
         let header = Paragraph::new(title)
             .block(
                 Block::default()
                     .borders(Borders::ALL)
                     .border_type(BorderType::Rounded)
                     .border_style(Style::default().fg(Color::Rgb(60, 60, 60)))
-                    .title(Span::styled(" 首页 ", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)))
+                    .title(Span::styled(
+                        " 首页 ",
+                        Style::default()
+                            .fg(Color::Cyan)
+                            .add_modifier(Modifier::BOLD),
+                    )),
             )
             .alignment(Alignment::Center);
         frame.render_widget(header, chunks[0]);
@@ -248,7 +267,11 @@ impl Component for HomePage {
         // Video grid
         if self.loading {
             let loading = Paragraph::new("⏳ 加载中...")
-                .style(Style::default().fg(Color::Yellow).add_modifier(Modifier::ITALIC))
+                .style(
+                    Style::default()
+                        .fg(Color::Yellow)
+                        .add_modifier(Modifier::ITALIC),
+                )
                 .alignment(Alignment::Center);
             frame.render_widget(loading, chunks[1]);
         } else if let Some(ref error) = self.error_message {
@@ -268,21 +291,44 @@ impl Component for HomePage {
         // Help with styled shortcuts
         let help_line = Line::from(vec![
             Span::styled(" [", Style::default().fg(Color::Rgb(60, 60, 60))),
-            Span::styled("←↑↓→", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                "←↑↓→",
+                Style::default()
+                    .fg(Color::Cyan)
+                    .add_modifier(Modifier::BOLD),
+            ),
             Span::styled("/", Style::default().fg(Color::Rgb(60, 60, 60))),
-            Span::styled("hjkl", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                "hjkl",
+                Style::default()
+                    .fg(Color::Cyan)
+                    .add_modifier(Modifier::BOLD),
+            ),
             Span::styled("] ", Style::default().fg(Color::Rgb(60, 60, 60))),
             Span::styled("导航", Style::default().fg(Color::Rgb(120, 120, 120))),
             Span::styled("  [", Style::default().fg(Color::Rgb(60, 60, 60))),
-            Span::styled("Enter", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                "Enter",
+                Style::default()
+                    .fg(Color::Green)
+                    .add_modifier(Modifier::BOLD),
+            ),
             Span::styled("] ", Style::default().fg(Color::Rgb(60, 60, 60))),
             Span::styled("播放", Style::default().fg(Color::Rgb(120, 120, 120))),
             Span::styled("  [", Style::default().fg(Color::Rgb(60, 60, 60))),
-            Span::styled("r", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                "r",
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD),
+            ),
             Span::styled("] ", Style::default().fg(Color::Rgb(60, 60, 60))),
             Span::styled("刷新", Style::default().fg(Color::Rgb(120, 120, 120))),
             Span::styled("  [", Style::default().fg(Color::Rgb(60, 60, 60))),
-            Span::styled("q", Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                "q",
+                Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
+            ),
             Span::styled("] ", Style::default().fg(Color::Rgb(60, 60, 60))),
             Span::styled("退出", Style::default().fg(Color::Rgb(120, 120, 120))),
         ]);
@@ -361,15 +407,15 @@ impl Component for HomePage {
 impl HomePage {
     fn render_grid(&mut self, frame: &mut Frame, area: Rect) {
         let visible_rows = self.visible_rows(area.height);
-        
+
         // Use fixed card width for consistent layout, cap at available width
         let fixed_card_width: u16 = 45;
         let card_width = fixed_card_width.min(area.width / self.columns as u16);
-        
+
         let row_constraints: Vec<Constraint> = (0..visible_rows)
             .map(|_| Constraint::Length(self.card_height))
             .collect();
-        
+
         let rows = Layout::default()
             .direction(Direction::Vertical)
             .constraints(row_constraints)
@@ -377,11 +423,11 @@ impl HomePage {
 
         // Collect all card areas first
         let mut card_areas: Vec<(usize, Rect)> = Vec::new();
-        
+
         for (row_offset, row_area) in rows.iter().enumerate() {
             let actual_row = self.scroll_row + row_offset;
             let start_idx = actual_row * self.columns;
-            
+
             if start_idx >= self.videos.len() {
                 break;
             }
@@ -393,7 +439,7 @@ impl HomePage {
             let col_constraints: Vec<Constraint> = (0..self.columns)
                 .map(|_| Constraint::Length(card_width))
                 .collect();
-            
+
             let cols = Layout::default()
                 .direction(Direction::Horizontal)
                 .horizontal_margin(margin)
@@ -416,22 +462,35 @@ impl HomePage {
         }
     }
 
-    fn render_video_card(&mut self, frame: &mut Frame, area: Rect, video_idx: usize, is_selected: bool) {
+    fn render_video_card(
+        &mut self,
+        frame: &mut Frame,
+        area: Rect,
+        video_idx: usize,
+        is_selected: bool,
+    ) {
         // Enhanced border styling
         let (border_style, border_type) = if is_selected {
             (
-                Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
-                BorderType::Rounded
+                Style::default()
+                    .fg(Color::Cyan)
+                    .add_modifier(Modifier::BOLD),
+                BorderType::Rounded,
             )
         } else {
             (
                 Style::default().fg(Color::Rgb(50, 50, 50)),
-                BorderType::Rounded
+                BorderType::Rounded,
             )
         };
 
         let title_span = if is_selected {
-            Span::styled(" ▶ ", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))
+            Span::styled(
+                " ▶ ",
+                Style::default()
+                    .fg(Color::Cyan)
+                    .add_modifier(Modifier::BOLD),
+            )
         } else {
             Span::raw("")
         };
@@ -441,16 +500,13 @@ impl HomePage {
             .border_type(border_type)
             .border_style(border_style)
             .title(title_span);
-        
+
         let inner = block.inner(area);
         frame.render_widget(block, area);
 
         let card_chunks = Layout::default()
             .direction(Direction::Vertical)
-            .constraints([
-                Constraint::Min(4),
-                Constraint::Length(4),
-            ])
+            .constraints([Constraint::Min(4), Constraint::Length(4)])
             .split(inner);
 
         // Cover area - render with StatefulImage
@@ -462,7 +518,11 @@ impl HomePage {
         } else {
             // Loading placeholder with spinner animation hint
             let is_pending = self.pending_downloads.contains(&video_idx);
-            let placeholder_text = if is_pending { "📺 加载中..." } else { "📺" };
+            let placeholder_text = if is_pending {
+                "📺 加载中..."
+            } else {
+                "📺"
+            };
             let placeholder = Paragraph::new(placeholder_text)
                 .style(Style::default().fg(Color::Rgb(60, 60, 60)))
                 .alignment(Alignment::Center);
@@ -472,7 +532,7 @@ impl HomePage {
         // Video info with enhanced styling
         let info_area = card_chunks[1];
         let card = &self.videos[video_idx];
-        
+
         let title = card.video.title.as_deref().unwrap_or("无标题");
         let author = card.video.author_name();
         let views = card.video.format_views();
@@ -480,23 +540,32 @@ impl HomePage {
 
         let max_title_len = (info_area.width as usize).saturating_sub(2);
         let display_title: String = if title.chars().count() > max_title_len {
-            title.chars().take(max_title_len.saturating_sub(3)).collect::<String>() + "..."
+            title
+                .chars()
+                .take(max_title_len.saturating_sub(3))
+                .collect::<String>()
+                + "..."
         } else {
             title.to_string()
         };
 
         // Multi-styled info text
         let title_style = if is_selected {
-            Style::default().fg(Color::White).add_modifier(Modifier::BOLD)
+            Style::default()
+                .fg(Color::White)
+                .add_modifier(Modifier::BOLD)
         } else {
             Style::default().fg(Color::Rgb(200, 200, 200))
         };
-        
+
         let meta_style = Style::default().fg(Color::Rgb(100, 100, 100));
-        
+
         let info_text = Text::from(vec![
             Line::from(Span::styled(&display_title, title_style)),
-            Line::from(Span::styled(author, Style::default().fg(Color::Rgb(150, 150, 150)))),
+            Line::from(Span::styled(
+                author,
+                Style::default().fg(Color::Rgb(150, 150, 150)),
+            )),
             Line::from(vec![
                 Span::styled(&views, meta_style),
                 Span::styled(" · ", meta_style),

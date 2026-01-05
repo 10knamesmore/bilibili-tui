@@ -4,9 +4,12 @@ pub use action::AppAction;
 
 use crate::api::client::ApiClient;
 use crate::storage::Credentials;
-use crate::ui::{Component, DynamicPage, HomePage, LoginPage, NavItem, Page, SearchPage, Sidebar, VideoDetailPage};
+use crate::ui::{
+    Component, DynamicPage, HomePage, LoginPage, NavItem, Page, SearchPage, Sidebar,
+    VideoDetailPage,
+};
 use ratatui::{
-    crossterm::event::{self, Event, KeyCode, KeyEventKind},
+    crossterm::event::{self, Event, KeyCode, KeyEventKind, KeyModifiers},
     prelude::*,
     DefaultTerminal, Frame,
 };
@@ -71,7 +74,7 @@ impl App {
             if event::poll(std::time::Duration::from_millis(100))? {
                 if let Event::Key(key) = event::read()? {
                     if key.kind == KeyEventKind::Press {
-                        self.handle_input(key.code).await;
+                        self.handle_input(key.code, key.modifiers).await;
                     }
                 }
             }
@@ -84,7 +87,7 @@ impl App {
 
     fn draw(&mut self, frame: &mut Frame) {
         let area = frame.area();
-        
+
         // Login page and VideoDetail don't show sidebar
         if matches!(self.current_page, Page::Login(_) | Page::VideoDetail(_)) {
             match &mut self.current_page {
@@ -100,8 +103,8 @@ impl App {
             Layout::default()
                 .direction(Direction::Horizontal)
                 .constraints([
-                    Constraint::Length(16),  // Sidebar
-                    Constraint::Min(40),     // Content
+                    Constraint::Length(16), // Sidebar
+                    Constraint::Min(40),    // Content
                 ])
                 .split(area)
         } else {
@@ -129,12 +132,12 @@ impl App {
         }
     }
 
-    async fn handle_input(&mut self, key: KeyCode) {
+    async fn handle_input(&mut self, key: KeyCode, modifiers: KeyModifiers) {
         let action = match &mut self.current_page {
             Page::Login(page) => page.handle_input(key),
             Page::Home(page) => page.handle_input(key),
             Page::Search(page) => page.handle_input(key),
-            Page::Dynamic(page) => page.handle_input(key),
+            Page::Dynamic(page) => page.handle_input_with_modifiers(key, modifiers),
             Page::VideoDetail(page) => page.handle_input(key),
         };
 
@@ -207,7 +210,9 @@ impl App {
             AppAction::RefreshDynamic => {
                 if let Page::Dynamic(page) = &mut self.current_page {
                     let client = self.api_client.lock().await;
-                    match client.get_dynamic_feed(None).await {
+                    let feed_type = page.current_tab.get_feed_type();
+                    let host_mid = page.get_selected_up_mid();
+                    match client.get_dynamic_feed(None, feed_type, host_mid).await {
                         Ok(data) => {
                             let items = data.items.unwrap_or_default();
                             let offset = data.offset;
@@ -228,7 +233,7 @@ impl App {
                     Page::Dynamic(_) => Some(PreviousPage::Dynamic),
                     _ => None,
                 };
-                
+
                 let mut detail_page = VideoDetailPage::new(bvid, aid);
                 let client = self.api_client.lock().await;
                 detail_page.load_data(&client).await;
@@ -277,6 +282,44 @@ impl App {
                     page.load_more(&client).await;
                 }
             }
+            AppAction::SwitchDynamicTab(tab) => {
+                if let Page::Dynamic(page) = &mut self.current_page {
+                    page.switch_tab(tab);
+                    let client = self.api_client.lock().await;
+                    let feed_type = page.current_tab.get_feed_type();
+                    let host_mid = page.get_selected_up_mid();
+                    match client.get_dynamic_feed(None, feed_type, host_mid).await {
+                        Ok(data) => {
+                            let items = data.items.unwrap_or_default();
+                            let offset = data.offset;
+                            let has_more = data.has_more.unwrap_or(false);
+                            page.set_feed(items, offset, has_more);
+                        }
+                        Err(e) => {
+                            page.set_error(format!("加载动态失败: {}", e));
+                        }
+                    }
+                }
+            }
+            AppAction::SelectUpMaster(index) => {
+                if let Page::Dynamic(page) = &mut self.current_page {
+                    page.select_up(index);
+                    let client = self.api_client.lock().await;
+                    let feed_type = page.current_tab.get_feed_type();
+                    let host_mid = page.get_selected_up_mid();
+                    match client.get_dynamic_feed(None, feed_type, host_mid).await {
+                        Ok(data) => {
+                            let items = data.items.unwrap_or_default();
+                            let offset = data.offset;
+                            let has_more = data.has_more.unwrap_or(false);
+                            page.set_feed(items, offset, has_more);
+                        }
+                        Err(e) => {
+                            page.set_error(format!("加载动态失败: {}", e));
+                        }
+                    }
+                }
+            }
             AppAction::None => {}
         }
     }
@@ -318,7 +361,24 @@ impl App {
             }
             Page::Dynamic(page) => {
                 let client = self.api_client.lock().await;
-                match client.get_dynamic_feed(None).await {
+
+                // First load portal to get frequently watched UPs
+                page.loading_up_list = true;
+                match client.get_dynamic_portal().await {
+                    Ok(portal) => {
+                        if let Some(up_list) = portal.up_list {
+                            page.set_up_list(up_list);
+                        }
+                    }
+                    Err(_) => {
+                        page.loading_up_list = false;
+                    }
+                }
+
+                // Then load dynamic feed
+                let feed_type = page.current_tab.get_feed_type();
+                let host_mid = page.get_selected_up_mid();
+                match client.get_dynamic_feed(None, feed_type, host_mid).await {
                     Ok(data) => {
                         let items = data.items.unwrap_or_default();
                         let offset = data.offset;
@@ -368,4 +428,3 @@ impl Default for App {
         Self::new()
     }
 }
-

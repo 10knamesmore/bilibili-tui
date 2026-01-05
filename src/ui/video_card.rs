@@ -49,16 +49,13 @@ impl VideoCard {
     }
 
     /// Render a single video card
-    pub fn render(
-        &mut self,
-        frame: &mut Frame,
-        area: Rect,
-        is_selected: bool,
-    ) {
+    pub fn render(&mut self, frame: &mut Frame, area: Rect, is_selected: bool) {
         // Enhanced border styling
         let (border_style, border_type) = if is_selected {
             (
-                Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+                Style::default()
+                    .fg(Color::Cyan)
+                    .add_modifier(Modifier::BOLD),
                 BorderType::Rounded,
             )
         } else {
@@ -69,7 +66,12 @@ impl VideoCard {
         };
 
         let title_span = if is_selected {
-            Span::styled(" ▶ ", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))
+            Span::styled(
+                " ▶ ",
+                Style::default()
+                    .fg(Color::Cyan)
+                    .add_modifier(Modifier::BOLD),
+            )
         } else {
             Span::raw("")
         };
@@ -86,8 +88,8 @@ impl VideoCard {
         let card_chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
-                Constraint::Min(4),     // Cover
-                Constraint::Length(4),  // Info
+                Constraint::Min(4),    // Cover
+                Constraint::Length(4), // Info
             ])
             .split(inner);
 
@@ -107,13 +109,19 @@ impl VideoCard {
         let info_area = card_chunks[1];
         let max_title_len = (info_area.width as usize).saturating_sub(2);
         let display_title: String = if self.title.chars().count() > max_title_len {
-            self.title.chars().take(max_title_len.saturating_sub(3)).collect::<String>() + "..."
+            self.title
+                .chars()
+                .take(max_title_len.saturating_sub(3))
+                .collect::<String>()
+                + "..."
         } else {
             self.title.clone()
         };
 
         let title_style = if is_selected {
-            Style::default().fg(Color::White).add_modifier(Modifier::BOLD)
+            Style::default()
+                .fg(Color::White)
+                .add_modifier(Modifier::BOLD)
         } else {
             Style::default().fg(Color::Rgb(200, 200, 200))
         };
@@ -122,7 +130,10 @@ impl VideoCard {
 
         let info_text = Text::from(vec![
             Line::from(Span::styled(&display_title, title_style)),
-            Line::from(Span::styled(&self.author, Style::default().fg(Color::Rgb(150, 150, 150)))),
+            Line::from(Span::styled(
+                &self.author,
+                Style::default().fg(Color::Rgb(150, 150, 150)),
+            )),
             Line::from(vec![
                 Span::styled(&self.views, meta_style),
                 Span::styled(" · ", meta_style),
@@ -187,7 +198,7 @@ impl VideoCardGrid {
     }
 
     pub fn total_rows(&self) -> usize {
-        (self.cards.len() + self.columns - 1) / self.columns
+        self.cards.len().div_ceil(self.columns)
     }
 
     pub fn update_scroll(&mut self, visible_rows: usize) {
@@ -270,7 +281,12 @@ impl VideoCardGrid {
                 tokio::spawn(async move {
                     if let Some(img) = download_image(&pic_url).await {
                         let protocol = picker.new_resize_protocol(img);
-                        let _ = tx.send(CoverResult { index: idx, protocol }).await;
+                        let _ = tx
+                            .send(CoverResult {
+                                index: idx,
+                                protocol,
+                            })
+                            .await;
                     }
                 });
             }

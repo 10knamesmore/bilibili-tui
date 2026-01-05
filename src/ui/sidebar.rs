@@ -1,9 +1,6 @@
 //! Left sidebar navigation component
 
-use ratatui::{
-    prelude::*,
-    widgets::*,
-};
+use ratatui::{prelude::*, widgets::*};
 
 /// Navigation menu items
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -43,7 +40,12 @@ impl Sidebar {
             .borders(Borders::RIGHT)
             .border_type(BorderType::Rounded)
             .border_style(Style::default().fg(Color::Rgb(50, 50, 50)))
-            .title(Span::styled(" 导航 ", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)));
+            .title(Span::styled(
+                " 导航 ",
+                Style::default()
+                    .fg(Color::Cyan)
+                    .add_modifier(Modifier::BOLD),
+            ));
 
         let inner = block.inner(area);
         frame.render_widget(block, area);
@@ -60,14 +62,13 @@ impl Sidebar {
                 } else {
                     Style::default().fg(Color::Rgb(150, 150, 150))
                 };
-                
+
                 let prefix = if is_selected { "▶ " } else { "  " };
                 ListItem::new(format!("{}{}", prefix, item.label())).style(style)
             })
             .collect();
 
-        let list = List::new(items)
-            .highlight_style(Style::default().add_modifier(Modifier::BOLD));
+        let list = List::new(items).highlight_style(Style::default().add_modifier(Modifier::BOLD));
 
         frame.render_widget(list, inner);
     }
@@ -82,7 +83,11 @@ impl Sidebar {
     pub fn prev(&mut self) {
         let items = NavItem::all();
         let current_idx = items.iter().position(|i| *i == self.selected).unwrap_or(0);
-        let prev_idx = if current_idx == 0 { items.len() - 1 } else { current_idx - 1 };
+        let prev_idx = if current_idx == 0 {
+            items.len() - 1
+        } else {
+            current_idx - 1
+        };
         self.selected = items[prev_idx];
     }
 

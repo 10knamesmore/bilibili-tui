@@ -6,11 +6,7 @@ use crate::api::client::ApiClient;
 use crate::app::AppAction;
 use crate::storage::Credentials;
 use qrcode::QrCode;
-use ratatui::{
-    crossterm::event::KeyCode,
-    prelude::*,
-    widgets::*,
-};
+use ratatui::{crossterm::event::KeyCode, prelude::*, widgets::*};
 use std::time::{Duration, Instant};
 use tui_qrcode::QrCodeWidget;
 
@@ -118,28 +114,43 @@ impl Component for LoginPage {
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
-                Constraint::Length(3),  // Title
-                Constraint::Min(20),    // QR code
-                Constraint::Length(3),  // Status
-                Constraint::Length(2),  // Help
+                Constraint::Length(3), // Title
+                Constraint::Min(20),   // QR code
+                Constraint::Length(3), // Status
+                Constraint::Length(2), // Help
             ])
             .split(area);
 
         // Title with Bilibili branding
         let title_line = Line::from(vec![
             Span::styled(" ", Style::default()),
-            Span::styled("B", Style::default().fg(Color::Rgb(251, 114, 153)).add_modifier(Modifier::BOLD)),
-            Span::styled("ilibili ", Style::default().fg(Color::White).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                "B",
+                Style::default()
+                    .fg(Color::Rgb(251, 114, 153))
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(
+                "ilibili ",
+                Style::default()
+                    .fg(Color::White)
+                    .add_modifier(Modifier::BOLD),
+            ),
             Span::styled("登录", Style::default().fg(Color::Cyan)),
         ]);
-        
+
         let title = Paragraph::new(title_line)
             .block(
                 Block::default()
                     .borders(Borders::ALL)
                     .border_type(BorderType::Rounded)
                     .border_style(Style::default().fg(Color::Rgb(60, 60, 60)))
-                    .title(Span::styled(" Login ", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)))
+                    .title(Span::styled(
+                        " Login ",
+                        Style::default()
+                            .fg(Color::Cyan)
+                            .add_modifier(Modifier::BOLD),
+                    )),
             )
             .alignment(Alignment::Center);
         frame.render_widget(title, chunks[0]);
@@ -149,8 +160,11 @@ impl Component for LoginPage {
             .borders(Borders::ALL)
             .border_type(BorderType::Rounded)
             .border_style(Style::default().fg(Color::Rgb(60, 60, 60)))
-            .title(Span::styled(" 扫码登录 ", Style::default().fg(Color::Rgb(150, 150, 150))));
-        
+            .title(Span::styled(
+                " 扫码登录 ",
+                Style::default().fg(Color::Rgb(150, 150, 150)),
+            ));
+
         if let Some(error) = &self.error_message {
             let error_widget = Paragraph::new(format!("❌ {}", error))
                 .style(Style::default().fg(Color::Red))
@@ -160,7 +174,7 @@ impl Component for LoginPage {
         } else if let Some(qrcode_data) = &self.qrcode_data {
             frame.render_widget(qr_block.clone(), chunks[1]);
             let inner_area = qr_block.inner(chunks[1]);
-            
+
             if let Ok(qr_code) = QrCode::new(&qrcode_data.url) {
                 // Center the QR code
                 let qr_area = centered_rect(60, 90, inner_area);
@@ -169,7 +183,11 @@ impl Component for LoginPage {
             }
         } else {
             let loading = Paragraph::new("⏳ 加载中...")
-                .style(Style::default().fg(Color::Yellow).add_modifier(Modifier::ITALIC))
+                .style(
+                    Style::default()
+                        .fg(Color::Yellow)
+                        .add_modifier(Modifier::ITALIC),
+                )
                 .alignment(Alignment::Center)
                 .block(qr_block);
             frame.render_widget(loading, chunks[1]);
@@ -178,25 +196,40 @@ impl Component for LoginPage {
         // Status with enhanced styling
         let (status_text, status_color) = self.status_text();
         let status = Paragraph::new(status_text)
-            .style(Style::default().fg(status_color).add_modifier(Modifier::BOLD))
+            .style(
+                Style::default()
+                    .fg(status_color)
+                    .add_modifier(Modifier::BOLD),
+            )
             .alignment(Alignment::Center)
             .block(
                 Block::default()
                     .borders(Borders::ALL)
                     .border_type(BorderType::Rounded)
                     .border_style(Style::default().fg(Color::Rgb(60, 60, 60)))
-                    .title(Span::styled(" 状态 ", Style::default().fg(Color::Rgb(150, 150, 150))))
+                    .title(Span::styled(
+                        " 状态 ",
+                        Style::default().fg(Color::Rgb(150, 150, 150)),
+                    )),
             );
         frame.render_widget(status, chunks[2]);
 
         // Help with styled shortcuts
         let help_line = Line::from(vec![
             Span::styled(" [", Style::default().fg(Color::Rgb(60, 60, 60))),
-            Span::styled("r", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                "r",
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD),
+            ),
             Span::styled("] ", Style::default().fg(Color::Rgb(60, 60, 60))),
             Span::styled("刷新二维码", Style::default().fg(Color::Rgb(120, 120, 120))),
             Span::styled("  [", Style::default().fg(Color::Rgb(60, 60, 60))),
-            Span::styled("q", Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                "q",
+                Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
+            ),
             Span::styled("] ", Style::default().fg(Color::Rgb(60, 60, 60))),
             Span::styled("退出", Style::default().fg(Color::Rgb(120, 120, 120))),
         ]);

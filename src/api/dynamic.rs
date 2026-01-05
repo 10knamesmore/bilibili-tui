@@ -11,6 +11,24 @@ pub struct DynamicFeedData {
     pub update_num: Option<i32>,
 }
 
+/// Portal data response (frequently watched UPs)
+#[derive(Debug, Deserialize)]
+pub struct PortalData {
+    pub up_list: Option<Vec<UpListItem>>,
+    // my_info and live_users are available but not needed for now
+}
+
+/// UP master in portal up_list
+#[derive(Debug, Clone, Deserialize)]
+pub struct UpListItem {
+    pub mid: i64,
+    pub uname: String,
+    pub face: String,
+    pub has_update: bool,
+    #[serde(default)]
+    pub is_reserve_recall: bool,
+}
+
 /// Individual dynamic item
 #[derive(Debug, Clone, Deserialize)]
 pub struct DynamicItem {
@@ -46,6 +64,8 @@ pub struct DynamicMajor {
     #[serde(rename = "type")]
     pub major_type: Option<String>,
     pub archive: Option<ArchiveInfo>,
+    pub draw: Option<DrawInfo>,
+    pub opus: Option<OpusInfo>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -67,6 +87,48 @@ pub struct ArchiveStat {
 #[derive(Debug, Clone, Deserialize)]
 pub struct DynamicDesc {
     pub text: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct DrawInfo {
+    pub id: Option<i64>,
+    pub items: Option<Vec<DrawItem>>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct DrawItem {
+    pub src: Option<String>,
+    pub height: Option<i32>,
+    pub width: Option<i32>,
+    pub size: Option<f32>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct OpusInfo {
+    pub title: Option<String>,
+    pub summary: Option<OpusSummary>,
+    pub pics: Option<Vec<OpusPic>>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct OpusSummary {
+    pub text: Option<String>,
+    pub rich_text_nodes: Option<Vec<RichTextNode>>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct OpusPic {
+    pub url: Option<String>,
+    pub height: Option<i32>,
+    pub width: Option<i32>,
+    pub size: Option<f32>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct RichTextNode {
+    pub text: Option<String>,
+    #[serde(rename = "type")]
+    pub node_type: Option<String>,
 }
 
 impl DynamicItem {
@@ -161,4 +223,85 @@ impl DynamicItem {
             .and_then(|a| a.duration_text.as_deref())
             .unwrap_or("")
     }
+
+    pub fn is_draw(&self) -> bool {
+        self.modules
+            .as_ref()
+            .and_then(|m| m.module_dynamic.as_ref())
+            .and_then(|d| d.major.as_ref())
+            .and_then(|m| m.major_type.as_ref())
+            .map(|t| t == "MAJOR_TYPE_DRAW")
+            .unwrap_or(false)
+    }
+
+    pub fn is_opus(&self) -> bool {
+        self.modules
+            .as_ref()
+            .and_then(|m| m.module_dynamic.as_ref())
+            .and_then(|d| d.major.as_ref())
+            .and_then(|m| m.major_type.as_ref())
+            .map(|t| t == "MAJOR_TYPE_OPUS")
+            .unwrap_or(false)
+    }
+
+    pub fn draw_images(&self) -> Vec<&str> {
+        self.modules
+            .as_ref()
+            .and_then(|m| m.module_dynamic.as_ref())
+            .and_then(|d| d.major.as_ref())
+            .and_then(|m| m.draw.as_ref())
+            .and_then(|draw| draw.items.as_ref())
+            .map(|items| {
+                items
+                    .iter()
+                    .filter_map(|item| item.src.as_deref())
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
+    pub fn opus_text(&self) -> Option<&str> {
+        self.modules
+            .as_ref()
+            .and_then(|m| m.module_dynamic.as_ref())
+            .and_then(|d| d.major.as_ref())
+            .and_then(|m| m.opus.as_ref())
+            .and_then(|opus| opus.summary.as_ref())
+            .and_then(|summary| summary.text.as_deref())
+    }
+
+    pub fn opus_images(&self) -> Vec<&str> {
+        self.modules
+            .as_ref()
+            .and_then(|m| m.module_dynamic.as_ref())
+            .and_then(|d| d.major.as_ref())
+            .and_then(|m| m.opus.as_ref())
+            .and_then(|opus| opus.pics.as_ref())
+            .map(|pics| pics.iter().filter_map(|pic| pic.url.as_deref()).collect())
+            .unwrap_or_default()
+    }
+
+    pub fn desc_text(&self) -> Option<&str> {
+        self.modules
+            .as_ref()
+            .and_then(|m| m.module_dynamic.as_ref())
+            .and_then(|d| d.desc.as_ref())
+            .and_then(|desc| desc.text.as_deref())
+    }
+}
+
+/// Following users response
+#[derive(Debug, Deserialize)]
+pub struct FollowingsData {
+    pub list: Option<Vec<FollowingUser>>,
+    pub total: Option<i32>,
+}
+
+/// Following user info
+#[derive(Debug, Clone, Deserialize)]
+pub struct FollowingUser {
+    pub mid: Option<i64>,
+    pub uname: Option<String>,
+    pub face: Option<String>,
+    pub sign: Option<String>,
 }

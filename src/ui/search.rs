@@ -1,15 +1,11 @@
 //! Search page with video card grid display
 
-use super::Component;
 use super::video_card::{VideoCard, VideoCardGrid};
+use super::Component;
 use crate::api::client::ApiClient;
 use crate::api::search::SearchVideoItem;
 use crate::app::AppAction;
-use ratatui::{
-    crossterm::event::KeyCode,
-    prelude::*,
-    widgets::*,
-};
+use ratatui::{crossterm::event::KeyCode, prelude::*, widgets::*};
 
 pub struct SearchPage {
     pub query: String,
@@ -81,7 +77,7 @@ impl SearchPage {
         if self.loading_more || self.query.is_empty() {
             return;
         }
-        
+
         // Check if we have more results
         if self.grid.cards.len() >= self.total_results as usize {
             return;
@@ -125,9 +121,9 @@ impl Component for SearchPage {
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
-                Constraint::Length(3),  // Search input
-                Constraint::Min(10),    // Results grid
-                Constraint::Length(2),  // Help
+                Constraint::Length(3), // Search input
+                Constraint::Min(10),   // Results grid
+                Constraint::Length(2), // Help
             ])
             .split(area);
 
@@ -137,7 +133,7 @@ impl Component for SearchPage {
         } else {
             Style::default().fg(Color::White)
         };
-        
+
         let input_block = Block::default()
             .borders(Borders::ALL)
             .border_type(BorderType::Rounded)
@@ -146,7 +142,10 @@ impl Component for SearchPage {
             } else {
                 Style::default().fg(Color::Rgb(60, 60, 60))
             })
-            .title(Span::styled(" 🔍 搜索视频 ", Style::default().fg(Color::Cyan)));
+            .title(Span::styled(
+                " 🔍 搜索视频 ",
+                Style::default().fg(Color::Cyan),
+            ));
 
         let cursor_char = if self.input_mode { "▌" } else { "" };
         let input = Paragraph::new(format!("{}{}", self.query, cursor_char))
@@ -159,23 +158,27 @@ impl Component for SearchPage {
             let loading = Paragraph::new("⏳ 搜索中...")
                 .style(Style::default().fg(Color::Yellow))
                 .alignment(Alignment::Center)
-                .block(Block::default()
-                    .borders(Borders::ALL)
-                    .border_type(BorderType::Rounded)
-                    .border_style(Style::default().fg(Color::Rgb(60, 60, 60)))
-                    .title(Span::styled(
-                        format!(" 结果 ({}) ", self.total_results),
-                        Style::default().fg(Color::Rgb(150, 150, 150))
-                    )));
+                .block(
+                    Block::default()
+                        .borders(Borders::ALL)
+                        .border_type(BorderType::Rounded)
+                        .border_style(Style::default().fg(Color::Rgb(60, 60, 60)))
+                        .title(Span::styled(
+                            format!(" 结果 ({}) ", self.total_results),
+                            Style::default().fg(Color::Rgb(150, 150, 150)),
+                        )),
+                );
             frame.render_widget(loading, chunks[1]);
         } else if let Some(ref error) = self.error_message {
             let error_widget = Paragraph::new(format!("❌ {}", error))
                 .style(Style::default().fg(Color::Red))
                 .alignment(Alignment::Center)
-                .block(Block::default()
-                    .borders(Borders::ALL)
-                    .border_type(BorderType::Rounded)
-                    .border_style(Style::default().fg(Color::Rgb(60, 60, 60))));
+                .block(
+                    Block::default()
+                        .borders(Borders::ALL)
+                        .border_type(BorderType::Rounded)
+                        .border_style(Style::default().fg(Color::Rgb(60, 60, 60))),
+                );
             frame.render_widget(error_widget, chunks[1]);
         } else if self.grid.cards.is_empty() {
             let empty = Paragraph::new(if self.query.is_empty() {
@@ -183,30 +186,36 @@ impl Component for SearchPage {
             } else {
                 "没有找到相关视频"
             })
-                .style(Style::default().fg(Color::Rgb(100, 100, 100)))
-                .alignment(Alignment::Center)
-                .block(Block::default()
+            .style(Style::default().fg(Color::Rgb(100, 100, 100)))
+            .alignment(Alignment::Center)
+            .block(
+                Block::default()
                     .borders(Borders::ALL)
                     .border_type(BorderType::Rounded)
-                    .border_style(Style::default().fg(Color::Rgb(60, 60, 60))));
+                    .border_style(Style::default().fg(Color::Rgb(60, 60, 60))),
+            );
             frame.render_widget(empty, chunks[1]);
         } else {
             // Render with header
             let header = Paragraph::new(Line::from(vec![
                 Span::styled(" 搜索结果 ", Style::default().fg(Color::Cyan)),
-                Span::styled(format!("({}/{})", self.grid.cards.len(), self.total_results), 
-                    Style::default().fg(Color::Rgb(100, 100, 100))),
+                Span::styled(
+                    format!("({}/{})", self.grid.cards.len(), self.total_results),
+                    Style::default().fg(Color::Rgb(100, 100, 100)),
+                ),
                 if self.loading_more {
                     Span::styled(" 加载中...", Style::default().fg(Color::Yellow))
                 } else {
                     Span::raw("")
                 },
             ]))
-            .block(Block::default()
-                .borders(Borders::TOP | Borders::LEFT | Borders::RIGHT)
-                .border_type(BorderType::Rounded)
-                .border_style(Style::default().fg(Color::Rgb(60, 60, 60))));
-            
+            .block(
+                Block::default()
+                    .borders(Borders::TOP | Borders::LEFT | Borders::RIGHT)
+                    .border_type(BorderType::Rounded)
+                    .border_style(Style::default().fg(Color::Rgb(60, 60, 60))),
+            );
+
             let header_area = Rect {
                 height: 2,
                 ..chunks[1]
@@ -216,7 +225,7 @@ impl Component for SearchPage {
                 height: chunks[1].height.saturating_sub(2),
                 ..chunks[1]
             };
-            
+
             frame.render_widget(header, header_area);
             self.grid.render(frame, grid_area);
         }
