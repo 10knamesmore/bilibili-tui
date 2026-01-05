@@ -1,0 +1,32 @@
+# .pre-commit-config.yaml
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-merge-conflict
+
+  - repo: https://github.com/FeryET/pre-commit-rust
+    rev: v1.2.1
+    hooks:
+      - id: fmt
+        name: Rust Fmt
+
+      - id: cargo-check
+        name: Cargo Check (Fast)
+
+      - id: clippy
+        name: Clippy (Lint)
+
+  - repo: https://github.com/FeryET/pre-commit-rust
+    rev: v1.2.1
+    hooks:
+      - id: build
+        stages: [push]
+        name: Cargo Build
+
+      - id: test
+        stages: [push]
+        name: Cargo Test
