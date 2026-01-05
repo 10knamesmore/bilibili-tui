@@ -288,6 +288,46 @@ impl DynamicItem {
             .and_then(|d| d.desc.as_ref())
             .and_then(|desc| desc.text.as_deref())
     }
+
+    /// Get the correct comment type code for this dynamic
+    /// Type 11: 相簿（图片动态） - image/photo albums (MAJOR_TYPE_DRAW, MAJOR_TYPE_OPUS)
+    /// Type 17: 动态（纯文字动态&分享） - text dynamics and shares
+    /// Type 1: 视频 - videos (MAJOR_TYPE_ARCHIVE)
+    pub fn comment_type(&self) -> i32 {
+        if let Some(major_type) = self
+            .modules
+            .as_ref()
+            .and_then(|m| m.module_dynamic.as_ref())
+            .and_then(|d| d.major.as_ref())
+            .and_then(|m| m.major_type.as_ref())
+        {
+            match major_type.as_str() {
+                "MAJOR_TYPE_DRAW" | "MAJOR_TYPE_OPUS" => 11, // 相簿（图片动态）
+                "MAJOR_TYPE_ARCHIVE" => 1,                   // 视频
+                _ => 17,                                     // 其他类型的动态（纯文字、转发等）
+            }
+        } else {
+            17 // 默认使用类型17
+        }
+    }
+
+    /// Get the correct oid for comments
+    /// For image dynamics (MAJOR_TYPE_DRAW), use the draw.id
+    /// For other types, use the dynamic id itself
+    pub fn comment_oid(&self, dynamic_id: &str) -> Option<i64> {
+        if self.is_draw() {
+            // For draw type, use the draw.id as oid
+            self.modules
+                .as_ref()
+                .and_then(|m| m.module_dynamic.as_ref())
+                .and_then(|d| d.major.as_ref())
+                .and_then(|m| m.draw.as_ref())
+                .and_then(|draw| draw.id)
+        } else {
+            // For other types, use the dynamic_id
+            dynamic_id.parse::<i64>().ok()
+        }
+    }
 }
 
 /// Following users response

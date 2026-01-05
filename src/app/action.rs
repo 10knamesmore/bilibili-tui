@@ -26,6 +26,8 @@ pub enum AppAction {
     RefreshDynamic,
     /// Open video detail page (bvid, aid)
     OpenVideoDetail(String, i64),
+    /// Open dynamic detail page for image/text dynamics (dynamic_id)
+    OpenDynamicDetail(String),
     /// Go back to previous page
     BackToList,
     /// Load more recommendations
@@ -36,6 +38,8 @@ pub enum AppAction {
     LoadMoreDynamic,
     /// Load more comments in video detail page
     LoadMoreComments,
+    /// Toggle comment replies expansion
+    ToggleCommentReplies,
     /// Switch dynamic tab
     SwitchDynamicTab(crate::ui::DynamicTab),
     /// Select UP master (0 = all, 1+ = specific UP)

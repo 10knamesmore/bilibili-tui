@@ -286,6 +286,28 @@ impl ApiClient {
         }))
     }
 
+    // Dynamic Detail API
+    pub async fn get_dynamic_detail(
+        &self,
+        dynamic_id: &str,
+    ) -> Result<super::dynamic::DynamicItem> {
+        let url = format!(
+            "{}/x/polymer/web-dynamic/v1/detail?id={}",
+            BilibiliApiDomain::Main.as_str(),
+            dynamic_id
+        );
+
+        #[derive(Deserialize)]
+        struct DynamicDetailData {
+            item: super::dynamic::DynamicItem,
+        }
+
+        let resp: ApiResponse<DynamicDetailData> = self.get(&url).await?;
+        resp.data
+            .map(|d| d.item)
+            .ok_or_else(|| anyhow::anyhow!("No data in dynamic detail response"))
+    }
+
     // Get following users (关注列表)
     pub async fn get_followings(
         &self,
@@ -327,6 +349,54 @@ impl ApiClient {
             "{}/x/v2/reply?type=1&oid={}&sort=1&ps=20&pn={}",
             BilibiliApiDomain::Main.as_str(),
             oid,
+            pn
+        );
+
+        let resp: ApiResponse<super::comment::CommentData> = self.get(&url).await?;
+        Ok(resp.data.unwrap_or(super::comment::CommentData {
+            page: None,
+            replies: None,
+            hots: None,
+        }))
+    }
+
+    // Dynamic Comments API
+    // type=11: 相簿（图片动态） - image/photo albums
+    // type=17: 动态（纯文字动态&分享） - text dynamics and shares
+    pub async fn get_dynamic_comments(
+        &self,
+        oid: i64,
+        comment_type: i32,
+        pn: i32,
+    ) -> Result<super::comment::CommentData> {
+        let url = format!(
+            "{}/x/v2/reply?type={}&oid={}&sort=1&ps=20&pn={}",
+            BilibiliApiDomain::Main.as_str(),
+            comment_type,
+            oid,
+            pn
+        );
+
+        let resp: ApiResponse<super::comment::CommentData> = self.get(&url).await?;
+        Ok(resp.data.unwrap_or(super::comment::CommentData {
+            page: None,
+            replies: None,
+            hots: None,
+        }))
+    }
+
+    // Comment replies API
+    pub async fn get_comment_replies(
+        &self,
+        oid: i64,
+        root: i64,
+        pn: i32,
+    ) -> Result<super::comment::CommentData> {
+        let url = format!(
+            "{}/x/v2/reply/reply?type=1&oid={}&root={}&ps=20&pn={}",
+            BilibiliApiDomain::Main.as_str(),
+            oid,
+            root,
             pn
         );
 

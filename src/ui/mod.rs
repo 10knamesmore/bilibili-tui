@@ -1,4 +1,5 @@
 mod dynamic;
+mod dynamic_detail;
 mod home;
 mod login;
 mod search;
@@ -9,6 +10,7 @@ mod video_card;
 mod video_detail;
 
 pub use dynamic::{DynamicPage, DynamicTab};
+pub use dynamic_detail::DynamicDetailPage;
 pub use home::HomePage;
 pub use login::LoginPage;
 pub use search::SearchPage;
@@ -48,6 +50,7 @@ pub enum Page {
     Home(HomePage),
     Search(SearchPage),
     Dynamic(DynamicPage),
+    DynamicDetail(Box<DynamicDetailPage>),
     VideoDetail(Box<VideoDetailPage>),
     Settings(SettingsPage),
 }

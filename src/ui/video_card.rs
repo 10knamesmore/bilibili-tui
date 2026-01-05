@@ -90,7 +90,7 @@ impl VideoCard {
             .direction(Direction::Vertical)
             .constraints([
                 Constraint::Min(4),    // Cover
-                Constraint::Length(4), // Info
+                Constraint::Length(3), // Info (3 lines: title, author, metadata)
             ])
             .split(inner);
 
@@ -171,6 +171,7 @@ pub struct VideoCardGrid {
     pub cover_tx: mpsc::Sender<CoverResult>,
     pub cover_rx: mpsc::Receiver<CoverResult>,
     pub pending_downloads: HashSet<usize>,
+    pub cached_visible_rows: usize,
 }
 
 impl VideoCardGrid {
@@ -188,6 +189,7 @@ impl VideoCardGrid {
             cover_tx,
             cover_rx,
             pending_downloads: HashSet::new(),
+            cached_visible_rows: 3,
         }
     }
 
@@ -229,7 +231,7 @@ impl VideoCardGrid {
             let new_idx = self.selected_index + self.columns;
             if new_idx < self.cards.len() {
                 self.selected_index = new_idx;
-                self.update_scroll(5);
+                self.update_scroll(self.cached_visible_rows);
                 return true;
             }
         }
@@ -239,7 +241,7 @@ impl VideoCardGrid {
     pub fn move_up(&mut self) -> bool {
         if !self.cards.is_empty() && self.selected_index >= self.columns {
             self.selected_index -= self.columns;
-            self.update_scroll(5);
+            self.update_scroll(self.cached_visible_rows);
             return true;
         }
         false
@@ -248,7 +250,7 @@ impl VideoCardGrid {
     pub fn move_right(&mut self) -> bool {
         if !self.cards.is_empty() && self.selected_index + 1 < self.cards.len() {
             self.selected_index += 1;
-            self.update_scroll(3);
+            self.update_scroll(self.cached_visible_rows);
             return true;
         }
         false
@@ -257,7 +259,7 @@ impl VideoCardGrid {
     pub fn move_left(&mut self) -> bool {
         if !self.cards.is_empty() && self.selected_index > 0 {
             self.selected_index -= 1;
-            self.update_scroll(3);
+            self.update_scroll(self.cached_visible_rows);
             return true;
         }
         false
@@ -320,6 +322,7 @@ impl VideoCardGrid {
     /// Render the grid
     pub fn render(&mut self, frame: &mut Frame, area: Rect, theme: &Theme) {
         let visible_rows = self.visible_rows(area.height);
+        self.cached_visible_rows = visible_rows;
 
         let row_constraints: Vec<Constraint> = (0..visible_rows)
             .map(|_| Constraint::Min(self.card_height))

@@ -230,22 +230,6 @@ impl Component for HomePage {
                     .add_modifier(Modifier::BOLD),
             ),
             Span::styled("推荐", Style::default().fg(theme.fg_accent)),
-            Span::styled(" │ ", Style::default().fg(theme.fg_secondary)),
-            Span::styled(
-                format!("{}", self.videos.len()),
-                Style::default().fg(theme.warning),
-            ),
-            Span::styled(" 个视频 │ ", Style::default().fg(theme.fg_secondary)),
-            Span::styled(
-                format!("{}", self.selected_row() + 1),
-                Style::default().fg(theme.success),
-            ),
-            Span::styled("/", Style::default().fg(theme.fg_secondary)),
-            Span::styled(
-                format!("{}", self.total_rows()),
-                Style::default().fg(theme.success),
-            ),
-            Span::styled(" 行 ", Style::default().fg(theme.fg_secondary)),
         ]);
 
         let header = Paragraph::new(title)

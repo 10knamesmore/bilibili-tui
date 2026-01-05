@@ -105,11 +105,15 @@ impl App {
     fn draw(&mut self, frame: &mut Frame) {
         let area = frame.area();
 
-        // Login page and VideoDetail don't show sidebar
-        if matches!(self.current_page, Page::Login(_) | Page::VideoDetail(_)) {
+        // Login page, VideoDetail, and DynamicDetail don't show sidebar
+        if matches!(
+            self.current_page,
+            Page::Login(_) | Page::VideoDetail(_) | Page::DynamicDetail(_)
+        ) {
             match &mut self.current_page {
                 Page::Login(page) => page.draw(frame, area, &self.theme),
                 Page::VideoDetail(page) => page.draw(frame, area, &self.theme),
+                Page::DynamicDetail(page) => page.draw(frame, area, &self.theme),
                 _ => {}
             }
             return;
@@ -145,6 +149,7 @@ impl App {
             Page::Home(page) => page.draw(frame, area, &self.theme),
             Page::Search(page) => page.draw(frame, area, &self.theme),
             Page::Dynamic(page) => page.draw(frame, area, &self.theme),
+            Page::DynamicDetail(page) => page.draw(frame, area, &self.theme),
             Page::VideoDetail(page) => page.draw(frame, area, &self.theme),
             Page::Settings(page) => page.draw(frame, area, &self.theme),
         }
@@ -156,6 +161,7 @@ impl App {
             Page::Home(page) => page.handle_input(key),
             Page::Search(page) => page.handle_input(key),
             Page::Dynamic(page) => page.handle_input_with_modifiers(key, modifiers),
+            Page::DynamicDetail(page) => page.handle_input(key),
             Page::VideoDetail(page) => page.handle_input(key),
             Page::Settings(page) => page.handle_input(key),
         };
@@ -258,6 +264,21 @@ impl App {
                 detail_page.load_data(client).await;
                 self.current_page = Page::VideoDetail(Box::new(detail_page));
             }
+            AppAction::OpenDynamicDetail(dynamic_id) => {
+                // Remember previous page
+                self.previous_page = match &self.current_page {
+                    Page::Home(_) => Some(PreviousPage::Home),
+                    Page::Search(_) => Some(PreviousPage::Search),
+                    Page::Dynamic(_) => Some(PreviousPage::Dynamic),
+                    _ => None,
+                };
+
+                use crate::ui::DynamicDetailPage;
+                let mut detail_page = DynamicDetailPage::new(dynamic_id);
+                let client = &self.api_client;
+                detail_page.load_data(client).await;
+                self.current_page = Page::DynamicDetail(Box::new(detail_page));
+            }
             AppAction::BackToList => {
                 match self.previous_page.take() {
                     Some(PreviousPage::Home) => {
@@ -304,6 +325,15 @@ impl App {
                 if let Page::VideoDetail(page) = &mut self.current_page {
                     let client = self.api_client.clone();
                     page.load_more_comments(&client).await;
+                } else if let Page::DynamicDetail(page) = &mut self.current_page {
+                    let client = self.api_client.clone();
+                    page.load_more_comments(&client).await;
+                }
+            }
+            AppAction::ToggleCommentReplies => {
+                if let Page::VideoDetail(page) = &mut self.current_page {
+                    let client = self.api_client.clone();
+                    page.toggle_comment_replies(&client).await;
                 }
             }
             AppAction::SwitchDynamicTab(tab) => {
@@ -445,6 +475,9 @@ impl App {
             }
             Page::VideoDetail(_) => {
                 // VideoDetail is initialized when created
+            }
+            Page::DynamicDetail(_) => {
+                // DynamicDetail is initialized when created
             }
             Page::Settings(_) => {
                 // Settings doesn't need async initialization

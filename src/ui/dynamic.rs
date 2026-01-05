@@ -11,14 +11,12 @@ use std::collections::HashMap;
 /// Dynamic feed tab types
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum DynamicTab {
-    /// All dynamics (视频+图文+文字)
+    /// All dynamics (视频+图文)
     All,
     /// Video dynamics only
     Videos,
-    /// Image dynamics (带图动态)
+    /// Image/Opus dynamics (图文动态)
     Images,
-    /// Text/Opus dynamics (图文动态)
-    Text,
 }
 
 impl DynamicTab {
@@ -26,18 +24,12 @@ impl DynamicTab {
         match self {
             DynamicTab::All => "全部",
             DynamicTab::Videos => "视频",
-            DynamicTab::Images => "图片",
-            DynamicTab::Text => "图文",
+            DynamicTab::Images => "图文",
         }
     }
 
-    pub fn all_tabs() -> [DynamicTab; 4] {
-        [
-            DynamicTab::All,
-            DynamicTab::Videos,
-            DynamicTab::Images,
-            DynamicTab::Text,
-        ]
+    pub fn all_tabs() -> [DynamicTab; 3] {
+        [DynamicTab::All, DynamicTab::Videos, DynamicTab::Images]
     }
 
     /// Get the API feed type parameter for this tab
@@ -45,8 +37,7 @@ impl DynamicTab {
         match self {
             DynamicTab::All => None, // No type filter = all types
             DynamicTab::Videos => Some("video"),
-            DynamicTab::Images => Some("draw"),
-            DynamicTab::Text => Some("article"),
+            DynamicTab::Images => Some("draw"), // draw type includes both draw and opus
         }
     }
 }
@@ -64,6 +55,7 @@ pub struct DynamicPage {
     pub selected_up_index: usize, // 0 = "全部动态", 1+ = specific UP
     pub loading_up_list: bool,
     pub up_list_scroll_offset: usize, // Horizontal scroll offset for UP list
+    pub dynamic_items: Vec<DynamicItem>, // Store original dynamic items for detail viewing
 }
 
 impl DynamicPage {
@@ -81,6 +73,7 @@ impl DynamicPage {
             selected_up_index: 0,
             loading_up_list: false,
             up_list_scroll_offset: 0,
+            dynamic_items: Vec::new(),
         }
     }
 
@@ -139,19 +132,22 @@ impl DynamicPage {
 
     pub fn set_feed(&mut self, items: Vec<DynamicItem>, offset: Option<String>, has_more: bool) {
         self.grid.clear();
+        self.dynamic_items.clear();
 
         // Process items based on current tab filter
         for item in items.into_iter() {
             let should_include = match self.current_tab {
                 DynamicTab::All => item.is_video() || item.is_draw() || item.is_opus(),
                 DynamicTab::Videos => item.is_video(),
-                DynamicTab::Images => item.is_draw(),
-                DynamicTab::Text => item.is_opus(),
+                DynamicTab::Images => item.is_draw() || item.is_opus(),
             };
 
             if !should_include {
                 continue;
             }
+
+            // Store the item
+            self.dynamic_items.push(item.clone());
 
             // Handle video dynamics
             if item.is_video() {
@@ -227,13 +223,15 @@ impl DynamicPage {
             let should_include = match self.current_tab {
                 DynamicTab::All => item.is_video() || item.is_draw() || item.is_opus(),
                 DynamicTab::Videos => item.is_video(),
-                DynamicTab::Images => item.is_draw(),
-                DynamicTab::Text => item.is_opus(),
+                DynamicTab::Images => item.is_draw() || item.is_opus(),
             };
 
             if !should_include {
                 continue;
             }
+
+            // Store the item
+            self.dynamic_items.push(item.clone());
 
             // Handle video dynamics
             if item.is_video() {
@@ -340,6 +338,12 @@ impl DynamicPage {
 
     pub fn start_cover_downloads(&mut self) {
         self.grid.start_cover_downloads();
+    }
+
+    /// Get the currently selected dynamic item (if any)
+    pub fn selected_dynamic_item(&self) -> Option<&DynamicItem> {
+        let selected_index = self.grid.selected_index;
+        self.dynamic_items.get(selected_index)
     }
 }
 
@@ -455,10 +459,6 @@ impl Component for DynamicPage {
                 Style::default()
                     .fg(theme.fg_accent)
                     .add_modifier(Modifier::BOLD),
-            ),
-            Span::styled(
-                format!(" ({} 条)", self.grid.cards.len()),
-                Style::default().fg(theme.fg_secondary),
             ),
             if self.loading_more {
                 Span::styled(" 加载中...", Style::default().fg(theme.warning))
@@ -625,10 +625,9 @@ impl Component for DynamicPage {
             // Tab switching - [ and ] keys
             (KeyCode::Char('['), KeyModifiers::NONE) => {
                 let new_tab = match self.current_tab {
-                    DynamicTab::All => DynamicTab::Text,
+                    DynamicTab::All => DynamicTab::Images,
                     DynamicTab::Videos => DynamicTab::All,
                     DynamicTab::Images => DynamicTab::Videos,
-                    DynamicTab::Text => DynamicTab::Images,
                 };
                 Some(AppAction::SwitchDynamicTab(new_tab))
             }
@@ -636,13 +635,12 @@ impl Component for DynamicPage {
                 let new_tab = match self.current_tab {
                     DynamicTab::All => DynamicTab::Videos,
                     DynamicTab::Videos => DynamicTab::Images,
-                    DynamicTab::Images => DynamicTab::Text,
-                    DynamicTab::Text => DynamicTab::All,
+                    DynamicTab::Images => DynamicTab::All,
                 };
                 Some(AppAction::SwitchDynamicTab(new_tab))
             }
 
-            // Tab switching - number keys (1-4) for direct access
+            // Tab switching - number keys (1-3) for direct access
             (KeyCode::Char('1'), KeyModifiers::NONE) => {
                 Some(AppAction::SwitchDynamicTab(DynamicTab::All))
             }
@@ -652,15 +650,21 @@ impl Component for DynamicPage {
             (KeyCode::Char('3'), KeyModifiers::NONE) => {
                 Some(AppAction::SwitchDynamicTab(DynamicTab::Images))
             }
-            (KeyCode::Char('4'), KeyModifiers::NONE) => {
-                Some(AppAction::SwitchDynamicTab(DynamicTab::Text))
-            }
 
             // Open selected card
             (KeyCode::Enter, _) => {
                 if let Some(card) = self.grid.selected_card() {
+                    // Video card - open video detail
                     if let Some(ref bvid) = card.bvid {
                         return Some(AppAction::OpenVideoDetail(bvid.clone(), 0));
+                    }
+                    // Non-video card (draw/opus) - open dynamic detail
+                    else if let Some(item) = self.selected_dynamic_item() {
+                        if item.is_draw() || item.is_opus() {
+                            if let Some(id) = &item.id_str {
+                                return Some(AppAction::OpenDynamicDetail(id.clone()));
+                            }
+                        }
                     }
                 }
                 Some(AppAction::None)
