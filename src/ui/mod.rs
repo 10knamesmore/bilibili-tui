@@ -29,7 +29,8 @@ use ratatui::{
 pub trait Component {
     fn draw(&mut self, frame: &mut Frame, area: Rect, theme: &Theme);
     fn handle_input(&mut self, key: KeyCode) -> Option<AppAction> {
-        self.handle_input_with_modifiers(key, KeyModifiers::empty())
+        let _ = key;
+        None
     }
     fn handle_input_with_modifiers(
         &mut self,

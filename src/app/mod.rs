@@ -15,7 +15,6 @@ use ratatui::{
 };
 use std::io;
 use std::sync::Arc;
-use tokio::sync::Mutex;
 
 /// Previous page for back navigation
 #[derive(Clone)]
@@ -29,7 +28,7 @@ pub enum PreviousPage {
 pub struct App {
     pub current_page: Page,
     pub should_quit: bool,
-    pub api_client: Arc<Mutex<ApiClient>>,
+    pub api_client: Arc<ApiClient>,
     pub credentials: Option<Credentials>,
     pub sidebar: Sidebar,
     pub show_sidebar: bool,
@@ -69,7 +68,7 @@ impl App {
         Self {
             current_page,
             should_quit: false,
-            api_client: Arc::new(Mutex::new(api_client)),
+            api_client: Arc::new(api_client),
             credentials,
             sidebar: Sidebar::new(),
             show_sidebar: true,
@@ -186,7 +185,7 @@ impl App {
                 self.credentials = Some(creds.clone());
                 // Update API client with new cookies
                 {
-                    let client = self.api_client.lock().await;
+                    let client = self.api_client.clone();
                     client.set_credentials(&creds);
                 }
                 // Switch to home
@@ -214,7 +213,7 @@ impl App {
             }
             AppAction::Search(keyword) => {
                 if let Page::Search(page) = &mut self.current_page {
-                    let client = self.api_client.lock().await;
+                    let client = self.api_client.clone();
                     match client.search_videos(&keyword, 1).await {
                         Ok(data) => {
                             let results = data.result.unwrap_or_default();
@@ -229,7 +228,7 @@ impl App {
             }
             AppAction::RefreshDynamic => {
                 if let Page::Dynamic(page) = &mut self.current_page {
-                    let client = self.api_client.lock().await;
+                    let client = self.api_client.clone();
                     let feed_type = page.current_tab.get_feed_type();
                     let host_mid = page.get_selected_up_mid();
                     match client.get_dynamic_feed(None, feed_type, host_mid).await {
@@ -255,9 +254,8 @@ impl App {
                 };
 
                 let mut detail_page = VideoDetailPage::new(bvid, aid);
-                let client = self.api_client.lock().await;
-                detail_page.load_data(&client).await;
-                drop(client);
+                let client = &self.api_client;
+                detail_page.load_data(client).await;
                 self.current_page = Page::VideoDetail(Box::new(detail_page));
             }
             AppAction::BackToList => {
@@ -286,32 +284,32 @@ impl App {
             }
             AppAction::LoadMoreRecommendations => {
                 if let Page::Home(page) = &mut self.current_page {
-                    let client = self.api_client.lock().await;
+                    let client = self.api_client.clone();
                     page.load_more(&client).await;
                 }
             }
             AppAction::LoadMoreSearch => {
                 if let Page::Search(page) = &mut self.current_page {
-                    let client = self.api_client.lock().await;
+                    let client = self.api_client.clone();
                     page.load_more(&client).await;
                 }
             }
             AppAction::LoadMoreDynamic => {
                 if let Page::Dynamic(page) = &mut self.current_page {
-                    let client = self.api_client.lock().await;
+                    let client = self.api_client.clone();
                     page.load_more(&client).await;
                 }
             }
             AppAction::LoadMoreComments => {
                 if let Page::VideoDetail(page) = &mut self.current_page {
-                    let client = self.api_client.lock().await;
+                    let client = self.api_client.clone();
                     page.load_more_comments(&client).await;
                 }
             }
             AppAction::SwitchDynamicTab(tab) => {
                 if let Page::Dynamic(page) = &mut self.current_page {
                     page.switch_tab(tab);
-                    let client = self.api_client.lock().await;
+                    let client = self.api_client.clone();
                     let feed_type = page.current_tab.get_feed_type();
                     let host_mid = page.get_selected_up_mid();
                     match client.get_dynamic_feed(None, feed_type, host_mid).await {
@@ -330,7 +328,7 @@ impl App {
             AppAction::SelectUpMaster(index) => {
                 if let Page::Dynamic(page) = &mut self.current_page {
                     page.select_up(index);
-                    let client = self.api_client.lock().await;
+                    let client = self.api_client.clone();
                     let feed_type = page.current_tab.get_feed_type();
                     let host_mid = page.get_selected_up_mid();
                     match client.get_dynamic_feed(None, feed_type, host_mid).await {
@@ -404,18 +402,18 @@ impl App {
     async fn init_current_page(&mut self) {
         match &mut self.current_page {
             Page::Login(page) => {
-                let client = self.api_client.lock().await;
+                let client = self.api_client.clone();
                 page.load_qrcode(&client).await;
             }
             Page::Home(page) => {
-                let client = self.api_client.lock().await;
+                let client = self.api_client.clone();
                 page.load_recommendations(&client).await;
             }
             Page::Search(_) => {
                 // Search page doesn't need initialization
             }
             Page::Dynamic(page) => {
-                let client = self.api_client.lock().await;
+                let client = self.api_client.clone();
 
                 // First load portal to get frequently watched UPs
                 page.loading_up_list = true;
@@ -457,9 +455,8 @@ impl App {
     async fn tick(&mut self) {
         match &mut self.current_page {
             Page::Login(page) => {
-                let client = self.api_client.lock().await;
-                if let Some(action) = page.tick(&client).await {
-                    drop(client);
+                let client = &self.api_client;
+                if let Some(action) = page.tick(client).await {
                     self.handle_action(action).await;
                 }
             }
