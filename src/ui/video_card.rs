@@ -282,7 +282,9 @@ impl VideoCardGrid {
         }
 
         let start = self.scroll_row * self.columns;
-        let end = (start + self.columns * 4).min(self.cards.len());
+        // Prefetch all visible rows plus 2 extra rows for smooth scrolling
+        let prefetch_rows = self.cached_visible_rows + 2;
+        let end = (start + self.columns * prefetch_rows).min(self.cards.len());
 
         for idx in start..end {
             if self.cards[idx].cover.is_some() || self.pending_downloads.contains(&idx) {
