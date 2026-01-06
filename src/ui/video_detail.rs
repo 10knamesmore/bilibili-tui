@@ -208,10 +208,10 @@ impl VideoDetailPage {
         let block = Block::default()
             .borders(Borders::ALL)
             .border_type(BorderType::Rounded)
-            .border_style(Style::default().fg(theme.border_unfocused))
+            .border_style(Style::default().fg(theme.border_subtle))
             .title(Span::styled(
                 " 📹 视频信息 ",
-                Style::default().fg(theme.fg_accent),
+                Style::default().fg(theme.bilibili_pink),
             ));
 
         let inner = block.inner(area);
@@ -307,9 +307,9 @@ impl VideoDetailPage {
             .title(Span::styled(
                 " 💬 评论 ",
                 Style::default().fg(if is_focused {
-                    theme.fg_accent
+                    theme.bilibili_pink
                 } else {
-                    theme.fg_secondary
+                    theme.fg_muted
                 }),
             ));
 
@@ -448,9 +448,9 @@ impl VideoDetailPage {
             .title(Span::styled(
                 " 📺 相关推荐 ",
                 Style::default().fg(if is_focused {
-                    theme.fg_accent
+                    theme.bilibili_pink
                 } else {
-                    theme.fg_secondary
+                    theme.fg_muted
                 }),
             ));
 

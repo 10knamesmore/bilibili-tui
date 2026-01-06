@@ -237,7 +237,7 @@ impl Component for HomePage {
                 Block::default()
                     .borders(Borders::ALL)
                     .border_type(BorderType::Rounded)
-                    .border_style(Style::default().fg(theme.border_unfocused))
+                    .border_style(Style::default().fg(theme.border_subtle))
                     .title(Span::styled(
                         " 首页 ",
                         Style::default()

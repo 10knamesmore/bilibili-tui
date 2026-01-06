@@ -44,11 +44,11 @@ impl Sidebar {
     }
 
     pub fn draw(&self, frame: &mut Frame, area: Rect, theme: &Theme) {
-        // Main block with branding
+        // Main block with subtle right border
         let block = Block::default()
             .borders(Borders::RIGHT)
-            .border_type(BorderType::Rounded)
-            .border_style(Style::default().fg(theme.border_unfocused));
+            .border_type(BorderType::Plain)
+            .border_style(Style::default().fg(theme.border_subtle));
 
         let inner = block.inner(area);
         frame.render_widget(block, area);
@@ -57,37 +57,52 @@ impl Sidebar {
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
-                Constraint::Length(3), // Header with branding
+                Constraint::Length(4), // Header with branding
                 Constraint::Length(1), // Separator
                 Constraint::Min(5),    // Nav items
+                Constraint::Length(1), // Footer separator
             ])
             .split(inner);
 
-        // Bilibili branding header
-        let brand_line = Line::from(vec![
-            Span::styled(
-                " B",
+        // Bilibili branding header with modern styling
+        let brand_lines = vec![
+            Line::raw(""),
+            Line::from(vec![
+                Span::styled(
+                    "  ▌",
+                    Style::default()
+                        .fg(theme.bilibili_pink)
+                        .add_modifier(Modifier::BOLD),
+                ),
+                Span::styled(
+                    "B",
+                    Style::default()
+                        .fg(theme.bilibili_pink)
+                        .add_modifier(Modifier::BOLD),
+                ),
+                Span::styled(
+                    "ilibili",
+                    Style::default()
+                        .fg(theme.fg_primary)
+                        .add_modifier(Modifier::BOLD),
+                ),
+            ]),
+            Line::from(vec![Span::styled(
+                "   TUI Client",
                 Style::default()
-                    .fg(theme.bilibili_pink)
-                    .add_modifier(Modifier::BOLD),
-            ),
-            Span::styled(
-                "ilibili",
-                Style::default()
-                    .fg(theme.fg_primary)
-                    .add_modifier(Modifier::BOLD),
-            ),
-        ]);
-        let brand = Paragraph::new(vec![Line::raw(""), brand_line]).alignment(Alignment::Center);
+                    .fg(theme.fg_muted)
+                    .add_modifier(Modifier::ITALIC),
+            )]),
+        ];
+        let brand = Paragraph::new(brand_lines);
         frame.render_widget(brand, chunks[0]);
 
-        // Separator line
-        let separator = Paragraph::new("─────────────")
-            .style(Style::default().fg(theme.border_unfocused))
-            .alignment(Alignment::Center);
+        // Separator line with gradient effect
+        let separator =
+            Paragraph::new("  ────────────").style(Style::default().fg(theme.border_subtle));
         frame.render_widget(separator, chunks[1]);
 
-        // Nav items with enhanced styling
+        // Nav items with modern block selection indicator
         let items: Vec<ListItem> = NavItem::all()
             .iter()
             .map(|item| {
@@ -96,13 +111,15 @@ impl Sidebar {
                     Style::default()
                         .fg(theme.bilibili_pink)
                         .add_modifier(Modifier::BOLD)
-                        .bg(theme.selection_bg)
+                        .bg(theme.bg_highlight)
                 } else {
                     Style::default().fg(theme.fg_secondary)
                 };
 
-                let prefix = if is_selected { "▸ " } else { "  " };
-                ListItem::new(format!("{}{}", prefix, item.label())).style(style)
+                // Use block indicator for selection instead of arrow
+                let prefix = if is_selected { " ▌" } else { "  " };
+                let suffix = if is_selected { " " } else { "" };
+                ListItem::new(format!("{}{}{}", prefix, item.label(), suffix)).style(style)
             })
             .collect();
 

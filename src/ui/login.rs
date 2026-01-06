@@ -125,18 +125,24 @@ impl Component for LoginPage {
         let title_line = Line::from(vec![
             Span::styled(" ", Style::default()),
             Span::styled(
+                "▌",
+                Style::default()
+                    .fg(theme.bilibili_pink)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(
                 "B",
                 Style::default()
-                    .fg(Color::Rgb(251, 114, 153))
+                    .fg(theme.bilibili_pink)
                     .add_modifier(Modifier::BOLD),
             ),
             Span::styled(
                 "ilibili ",
                 Style::default()
-                    .fg(Color::White)
+                    .fg(theme.fg_primary)
                     .add_modifier(Modifier::BOLD),
             ),
-            Span::styled("登录", Style::default().fg(Color::Cyan)),
+            Span::styled("登录", Style::default().fg(theme.bilibili_cyan)),
         ]);
 
         let title = Paragraph::new(title_line)
@@ -144,11 +150,11 @@ impl Component for LoginPage {
                 Block::default()
                     .borders(Borders::ALL)
                     .border_type(BorderType::Rounded)
-                    .border_style(Style::default().fg(Color::Rgb(60, 60, 60)))
+                    .border_style(Style::default().fg(theme.border_subtle))
                     .title(Span::styled(
                         " Login ",
                         Style::default()
-                            .fg(theme.fg_accent)
+                            .fg(theme.bilibili_pink)
                             .add_modifier(Modifier::BOLD),
                     )),
             )

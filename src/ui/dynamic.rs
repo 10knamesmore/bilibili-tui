@@ -436,8 +436,11 @@ impl Component for DynamicPage {
                 Block::default()
                     .borders(Borders::ALL)
                     .border_type(BorderType::Rounded)
-                    .title("关注的UP主")
-                    .border_style(Style::default().fg(theme.border_unfocused)),
+                    .title(Span::styled(
+                        " 关注的UP主 ",
+                        Style::default().fg(theme.bilibili_pink),
+                    ))
+                    .border_style(Style::default().fg(theme.border_subtle)),
             )
             .alignment(Alignment::Left);
         frame.render_widget(up_bar, chunks[0]);
@@ -457,7 +460,7 @@ impl Component for DynamicPage {
             Span::styled(
                 "关注动态",
                 Style::default()
-                    .fg(theme.fg_accent)
+                    .fg(theme.bilibili_pink)
                     .add_modifier(Modifier::BOLD),
             ),
             if self.loading_more {
@@ -470,7 +473,7 @@ impl Component for DynamicPage {
             Block::default()
                 .borders(Borders::TOP | Borders::LEFT | Borders::RIGHT)
                 .border_type(BorderType::Rounded)
-                .border_style(Style::default().fg(theme.border_unfocused)),
+                .border_style(Style::default().fg(theme.border_subtle)),
         )
         .alignment(Alignment::Center);
         frame.render_widget(title, header_chunks[0]);

@@ -51,26 +51,27 @@ impl VideoCard {
 
     /// Render a single video card
     pub fn render(&mut self, frame: &mut Frame, area: Rect, is_selected: bool, theme: &Theme) {
-        // Enhanced border styling
+        // Enhanced border styling - use Bilibili pink for selection
         let (border_style, border_type) = if is_selected {
             (
                 Style::default()
-                    .fg(theme.border_focused)
+                    .fg(theme.bilibili_pink)
                     .add_modifier(Modifier::BOLD),
                 BorderType::Rounded,
             )
         } else {
             (
-                Style::default().fg(theme.border_unfocused),
+                Style::default().fg(theme.border_subtle),
                 BorderType::Rounded,
             )
         };
 
+        // Card title shows selection indicator
         let title_span = if is_selected {
             Span::styled(
                 " ▶ ",
                 Style::default()
-                    .fg(theme.fg_accent)
+                    .fg(theme.bilibili_pink)
                     .add_modifier(Modifier::BOLD),
             )
         } else {
@@ -98,8 +99,7 @@ impl VideoCard {
         let cover_area = card_chunks[0];
 
         // Calculate centered cover area (assuming 16:9 aspect ratio for video covers)
-        // The image will be centered within the available cover_area
-        let target_width = cover_area.width.saturating_sub(2); // Leave 1 char margin on each side
+        let target_width = cover_area.width.saturating_sub(2);
         let centered_cover = Rect {
             x: cover_area.x + (cover_area.width.saturating_sub(target_width)) / 2,
             y: cover_area.y,
@@ -111,25 +111,27 @@ impl VideoCard {
             let image_widget = StatefulImage::new();
             frame.render_stateful_widget(image_widget, centered_cover, cover);
         } else {
+            // Modern placeholder with subtle styling
             let placeholder = Paragraph::new("📺")
-                .style(Style::default().fg(theme.fg_secondary))
+                .style(Style::default().fg(theme.fg_muted))
                 .alignment(Alignment::Center);
             frame.render_widget(placeholder, cover_area);
         }
 
-        // Video info
+        // Video info with improved hierarchy
         let info_area = card_chunks[1];
         let max_title_len = (info_area.width as usize).saturating_sub(2);
         let display_title: String = if self.title.chars().count() > max_title_len {
             self.title
                 .chars()
-                .take(max_title_len.saturating_sub(3))
+                .take(max_title_len.saturating_sub(2))
                 .collect::<String>()
-                + "..."
+                + "…"
         } else {
             self.title.clone()
         };
 
+        // Title styling - selected items get primary color and bold
         let title_style = if is_selected {
             Style::default()
                 .fg(theme.fg_primary)
@@ -138,17 +140,15 @@ impl VideoCard {
             Style::default().fg(theme.fg_secondary)
         };
 
-        let meta_style = Style::default().fg(theme.fg_secondary);
-
         let info_text = Text::from(vec![
             Line::from(Span::styled(&display_title, title_style)),
             Line::from(Span::styled(
                 &self.author,
-                Style::default().fg(theme.fg_secondary),
+                Style::default().fg(theme.bilibili_cyan),
             )),
             Line::from(vec![
-                Span::styled(&self.views, meta_style),
-                Span::styled(" · ", meta_style),
+                Span::styled(&self.views, Style::default().fg(theme.fg_muted)),
+                Span::styled(" · ", Style::default().fg(theme.fg_muted)),
                 Span::styled(&self.duration, Style::default().fg(theme.success)),
             ]),
         ]);

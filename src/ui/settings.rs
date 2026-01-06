@@ -94,7 +94,7 @@ impl Component for SettingsPage {
 
         // Header
         let header_line = Line::from(vec![
-            Span::styled("⚙️ ", Style::default().fg(theme.fg_accent)),
+            Span::styled("⚙️ ", Style::default().fg(theme.bilibili_pink)),
             Span::styled(
                 "设置",
                 Style::default()
@@ -107,8 +107,8 @@ impl Component for SettingsPage {
             .block(
                 Block::default()
                     .borders(Borders::BOTTOM)
-                    .border_type(BorderType::Rounded)
-                    .border_style(Style::default().fg(theme.border_unfocused)),
+                    .border_type(BorderType::Plain)
+                    .border_style(Style::default().fg(theme.border_subtle)),
             );
         frame.render_widget(header, main_chunks[0]);
 
@@ -250,12 +250,12 @@ impl SettingsPage {
     fn draw_section_list(&self, frame: &mut Frame, area: Rect, theme: &Theme) {
         let block = Block::default()
             .borders(Borders::RIGHT)
-            .border_type(BorderType::Rounded)
-            .border_style(Style::default().fg(theme.border_unfocused))
+            .border_type(BorderType::Plain)
+            .border_style(Style::default().fg(theme.border_subtle))
             .title(Span::styled(
                 " 分类 ",
                 Style::default()
-                    .fg(theme.fg_accent)
+                    .fg(theme.bilibili_pink)
                     .add_modifier(Modifier::BOLD),
             ));
 
@@ -288,11 +288,11 @@ impl SettingsPage {
         let block = Block::default()
             .borders(Borders::ALL)
             .border_type(BorderType::Rounded)
-            .border_style(Style::default().fg(theme.border_unfocused))
+            .border_style(Style::default().fg(theme.border_subtle))
             .title(Span::styled(
                 " 🎨 选择主题 ",
                 Style::default()
-                    .fg(theme.fg_accent)
+                    .fg(theme.bilibili_pink)
                     .add_modifier(Modifier::BOLD),
             ));
 
@@ -334,11 +334,11 @@ impl SettingsPage {
         let block = Block::default()
             .borders(Borders::ALL)
             .border_type(BorderType::Rounded)
-            .border_style(Style::default().fg(theme.border_unfocused))
+            .border_style(Style::default().fg(theme.border_subtle))
             .title(Span::styled(
                 " ⌨️ 快捷键 ",
                 Style::default()
-                    .fg(theme.fg_accent)
+                    .fg(theme.bilibili_pink)
                     .add_modifier(Modifier::BOLD),
             ));
 
@@ -382,11 +382,11 @@ impl SettingsPage {
         let block = Block::default()
             .borders(Borders::ALL)
             .border_type(BorderType::Rounded)
-            .border_style(Style::default().fg(theme.border_unfocused))
+            .border_style(Style::default().fg(theme.border_subtle))
             .title(Span::styled(
                 " 👤 账户 ",
                 Style::default()
-                    .fg(theme.fg_accent)
+                    .fg(theme.bilibili_pink)
                     .add_modifier(Modifier::BOLD),
             ));
 

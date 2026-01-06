@@ -138,13 +138,13 @@ impl Component for SearchPage {
             .borders(Borders::ALL)
             .border_type(BorderType::Rounded)
             .border_style(if self.input_mode {
-                Style::default().fg(theme.border_focused)
+                Style::default().fg(theme.bilibili_pink)
             } else {
-                Style::default().fg(theme.border_unfocused)
+                Style::default().fg(theme.border_subtle)
             })
             .title(Span::styled(
                 " 🔍 搜索视频 ",
-                Style::default().fg(theme.fg_accent),
+                Style::default().fg(theme.bilibili_pink),
             ));
 
         let cursor_char = if self.input_mode { "▌" } else { "" };
@@ -198,10 +198,10 @@ impl Component for SearchPage {
         } else {
             // Render with header
             let header = Paragraph::new(Line::from(vec![
-                Span::styled(" 搜索结果 ", Style::default().fg(theme.fg_accent)),
+                Span::styled(" 搜索结果 ", Style::default().fg(theme.bilibili_pink)),
                 Span::styled(
                     format!("({}/{})", self.grid.cards.len(), self.total_results),
-                    Style::default().fg(theme.fg_secondary),
+                    Style::default().fg(theme.fg_muted),
                 ),
                 if self.loading_more {
                     Span::styled(" 加载中...", Style::default().fg(theme.warning))
@@ -213,7 +213,7 @@ impl Component for SearchPage {
                 Block::default()
                     .borders(Borders::TOP | Borders::LEFT | Borders::RIGHT)
                     .border_type(BorderType::Rounded)
-                    .border_style(Style::default().fg(theme.border_unfocused)),
+                    .border_style(Style::default().fg(theme.border_subtle)),
             );
 
             let header_area = Rect {
