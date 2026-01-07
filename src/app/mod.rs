@@ -81,6 +81,17 @@ impl App {
         }
     }
 
+    /// 记录当前页面以便返回导航
+    fn save_previous_page(&mut self) {
+        self.previous_page = match &self.current_page {
+            Page::Home(_) => Some(PreviousPage::Home),
+            Page::Search(_) => Some(PreviousPage::Search),
+            Page::Dynamic(_) => Some(PreviousPage::Dynamic),
+            Page::History(_) => Some(PreviousPage::History),
+            _ => None,
+        };
+    }
+
     /// Main run loop
     pub async fn run(mut self, terminal: &mut DefaultTerminal) -> io::Result<()> {
         // Initialize the first page
@@ -268,30 +279,14 @@ impl App {
                 }
             }
             AppAction::OpenVideoDetail(bvid, aid) => {
-                // Remember previous page
-                self.previous_page = match &self.current_page {
-                    Page::Home(_) => Some(PreviousPage::Home),
-                    Page::Search(_) => Some(PreviousPage::Search),
-                    Page::Dynamic(_) => Some(PreviousPage::Dynamic),
-                    Page::History(_) => Some(PreviousPage::History),
-                    _ => None,
-                };
-
+                self.save_previous_page();
                 let mut detail_page = VideoDetailPage::new(bvid, aid);
                 let client = &self.api_client;
                 detail_page.load_data(client).await;
                 self.current_page = Page::VideoDetail(Box::new(detail_page));
             }
             AppAction::OpenDynamicDetail(dynamic_id) => {
-                // Remember previous page
-                self.previous_page = match &self.current_page {
-                    Page::Home(_) => Some(PreviousPage::Home),
-                    Page::Search(_) => Some(PreviousPage::Search),
-                    Page::Dynamic(_) => Some(PreviousPage::Dynamic),
-                    Page::History(_) => Some(PreviousPage::History),
-                    _ => None,
-                };
-
+                self.save_previous_page();
                 use crate::ui::DynamicDetailPage;
                 let mut detail_page = DynamicDetailPage::new(dynamic_id);
                 let client = &self.api_client;

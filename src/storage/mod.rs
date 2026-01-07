@@ -20,26 +20,19 @@ impl Credentials {
         cookies: &[(String, String)],
         refresh_token: Option<String>,
     ) -> Option<Self> {
-        let mut sessdata = None;
-        let mut bili_jct = None;
-        let mut dede_user_id = None;
-        let mut dede_user_id_ckmd5 = None;
-
-        for (name, value) in cookies {
-            match name.as_str() {
-                "SESSDATA" => sessdata = Some(value.clone()),
-                "bili_jct" => bili_jct = Some(value.clone()),
-                "DedeUserID" => dede_user_id = Some(value.clone()),
-                "DedeUserID__ckMd5" => dede_user_id_ckmd5 = Some(value.clone()),
-                _ => {}
-            }
-        }
+        // ✅ 使用闭包和迭代器查找 cookie
+        let get_cookie = |name: &str| -> Option<String> {
+            cookies
+                .iter()
+                .find(|(n, _)| n == name)
+                .map(|(_, v)| v.clone())
+        };
 
         Some(Credentials {
-            sessdata: sessdata?,
-            bili_jct: bili_jct?,
-            dede_user_id: dede_user_id?,
-            dede_user_id_ckmd5,
+            sessdata: get_cookie("SESSDATA")?,
+            bili_jct: get_cookie("bili_jct")?,
+            dede_user_id: get_cookie("DedeUserID")?,
+            dede_user_id_ckmd5: get_cookie("DedeUserID__ckMd5"),
             refresh_token,
         })
     }

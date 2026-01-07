@@ -79,7 +79,7 @@ impl ApiClient {
             "SESSDATA={}; bili_jct={}; DedeUserID={}",
             credentials.sessdata, credentials.bili_jct, credentials.dede_user_id
         );
-        *self.cookies.write().unwrap() = Some(cookie_str);
+        *self.cookies.write().expect("cookies lock poisoned") = Some(cookie_str);
     }
 
     fn build_url(&self, domain: BilibiliApiDomain, endpoint: &str) -> String {
@@ -89,7 +89,7 @@ impl ApiClient {
     /// Make a GET request
     pub async fn get<T: for<'de> Deserialize<'de>>(&self, url: &str) -> Result<ApiResponse<T>> {
         let mut req = self.client.get(url);
-        if let Some(ref cookies) = *self.cookies.read().unwrap() {
+        if let Some(ref cookies) = *self.cookies.read().expect("cookies lock poisoned") {
             req = req.header(COOKIE, cookies.as_str());
         }
         let resp = req.send().await?;
@@ -105,34 +105,37 @@ impl ApiClient {
     ) -> Result<ApiResponse<T>> {
         let mut req = self.client.post(url);
 
-        if let Some(ref cookies) = *self.cookies.read().unwrap() {
-            req = req.header(COOKIE, cookies.as_str());
-        }
+        // 使用块作用域确保锁在 await 之前释放
+        let params = {
+            let cookies = self.cookies.read().expect("cookies lock poisoned");
+            if let Some(ref cookie_str) = *cookies {
+                req = req.header(COOKIE, cookie_str.as_str());
+            }
 
-        let has_csrf = if let Some(ref cookies) = *self.cookies.read().unwrap() {
-            cookies.contains("bili_jct")
-        } else {
-            false
-        };
+            let has_csrf = cookies
+                .as_ref()
+                .map(|c| c.contains("bili_jct"))
+                .unwrap_or(false);
 
-        let mut params = Vec::new();
-        for (key, value) in form_data {
-            params.push((key.to_string(), value));
-        }
+            let mut params: Vec<(String, String)> = form_data
+                .into_iter()
+                .map(|(k, v)| (k.to_string(), v))
+                .collect();
 
-        if has_csrf && !params.iter().any(|(k, _)| k == "csrf") {
-            if let Some(ref cookies) = *self.cookies.read().unwrap() {
-                for part in cookies.split(';') {
-                    let part = part.trim();
-                    if let Some((name, value)) = part.split_once('=') {
-                        if name == "bili_jct" {
-                            params.push(("csrf".to_string(), value.to_string()));
-                            break;
-                        }
+            if has_csrf && !params.iter().any(|(k, _)| k == "csrf") {
+                if let Some(cookie_str) = cookies.as_ref() {
+                    if let Some(csrf) = cookie_str.split(';').find_map(|part| {
+                        let part = part.trim();
+                        part.split_once('=')
+                            .filter(|(name, _)| *name == "bili_jct")
+                            .map(|(_, value)| value.to_string())
+                    }) {
+                        params.push(("csrf".to_string(), csrf));
                     }
                 }
             }
-        }
+            params
+        }; // 锁在此处释放
 
         req = req.form(&params);
         let resp = req.send().await?;
@@ -150,8 +153,10 @@ impl ApiClient {
         self.ensure_wbi_keys().await?;
 
         let query = {
-            let keys = self.wbi_keys.read().unwrap();
-            let keys = keys.as_ref().unwrap();
+            let keys = self.wbi_keys.read().expect("wbi_keys lock poisoned");
+            let keys = keys
+                .as_ref()
+                .expect("WBI keys should be set after ensure_wbi_keys");
             wbi::encode_wbi(params, &keys.img_key, &keys.sub_key)
         };
         let url = format!("{}?{}", base_url, query);
@@ -161,7 +166,12 @@ impl ApiClient {
 
     /// Fetch WBI keys from nav API
     async fn ensure_wbi_keys(&self) -> Result<()> {
-        if self.wbi_keys.read().unwrap().is_some() {
+        if self
+            .wbi_keys
+            .read()
+            .expect("wbi_keys lock poisoned")
+            .is_some()
+        {
             return Ok(());
         }
 
@@ -185,7 +195,8 @@ impl ApiClient {
             let sub_key = wbi::extract_key_from_url(&data.wbi_img.sub_url)
                 .ok_or_else(|| anyhow::anyhow!("Failed to extract sub_key"))?;
 
-            *self.wbi_keys.write().unwrap() = Some(WbiKeys { img_key, sub_key });
+            *self.wbi_keys.write().expect("wbi_keys lock poisoned") =
+                Some(WbiKeys { img_key, sub_key });
         }
 
         Ok(())

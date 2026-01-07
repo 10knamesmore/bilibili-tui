@@ -22,22 +22,24 @@ pub fn get_mixin_key(img_key: &str, sub_key: &str) -> String {
 
 /// URL encode a string (RFC 3986 compliant)
 fn url_encode(s: &str) -> String {
-    s.chars()
-        .filter_map(|c| {
-            if c.is_ascii_alphanumeric() || "-_.~".contains(c) {
-                Some(c.to_string())
-            } else if "!'()*".contains(c) {
-                // Filter these characters
-                None
-            } else {
-                let encoded = c
-                    .encode_utf8(&mut [0; 4])
-                    .bytes()
-                    .fold(String::new(), |acc, b| acc + &format!("%{:02X}", b));
-                Some(encoded)
+    use std::fmt::Write;
+
+    // ✅ 预分配容量 (估算: 每个非ASCII字符最多编码为 %XX%XX%XX%XX = 12字符)
+    let mut result = String::with_capacity(s.len() * 3);
+
+    for c in s.chars() {
+        if c.is_ascii_alphanumeric() || "-_.~".contains(c) {
+            result.push(c);
+        } else if !"!'()*".contains(c) {
+            // URL encode: 每个字节变成 %XX
+            for byte in c.encode_utf8(&mut [0; 4]).bytes() {
+                let _ = write!(result, "%{:02X}", byte);
             }
-        })
-        .collect::<String>()
+        }
+        // else: 过滤掉 !'()* 字符
+    }
+
+    result
 }
 
 /// Sign request parameters with WBI

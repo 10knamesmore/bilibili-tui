@@ -41,6 +41,15 @@ pub struct HomePage {
 }
 
 impl HomePage {
+    /// 默认列数
+    const DEFAULT_COLUMNS: usize = 3;
+    /// 卡片高度
+    const CARD_HEIGHT: u16 = 10;
+    /// 预加载行数（用于提前下载封面）
+    const PREFETCH_ROWS: usize = 4;
+    /// 默认可见行数（用于滚动计算）
+    const DEFAULT_VISIBLE_ROWS: usize = 3;
+
     pub fn new() -> Self {
         // Try to detect terminal graphics protocol (Kitty/Sixel/iTerm2)
         // Fall back to halfblocks if detection fails
@@ -56,8 +65,8 @@ impl HomePage {
             error_message: None,
             scroll_row: 0,
             picker,
-            columns: 3,
-            card_height: 10,
+            columns: Self::DEFAULT_COLUMNS,
+            card_height: Self::CARD_HEIGHT,
             cover_tx,
             cover_rx,
             pending_downloads: HashSet::new(),
@@ -128,7 +137,7 @@ impl HomePage {
 
         // Calculate visible range
         let start = self.scroll_row * self.columns;
-        let end = (start + self.columns * 4).min(self.videos.len()); // Prefetch extra rows
+        let end = (start + self.columns * Self::PREFETCH_ROWS).min(self.videos.len()); // Prefetch extra rows
 
         for idx in start..end {
             // Skip if already has cover or is pending
@@ -338,9 +347,9 @@ impl Component for HomePage {
                     if new_idx < self.videos.len() {
                         self.selected_index = new_idx;
                     }
-                    self.update_scroll(3);
+                    self.update_scroll(Self::DEFAULT_VISIBLE_ROWS);
                     // Check for pagination
-                    if self.is_near_bottom(3) && !self.loading_more {
+                    if self.is_near_bottom(Self::DEFAULT_VISIBLE_ROWS) && !self.loading_more {
                         return Some(AppAction::LoadMoreRecommendations);
                     }
                 }
@@ -349,21 +358,21 @@ impl Component for HomePage {
             KeyCode::Char('k') | KeyCode::Up => {
                 if !self.videos.is_empty() && self.selected_index >= self.columns {
                     self.selected_index -= self.columns;
-                    self.update_scroll(3);
+                    self.update_scroll(Self::DEFAULT_VISIBLE_ROWS);
                 }
                 Some(AppAction::None)
             }
             KeyCode::Char('l') | KeyCode::Right => {
                 if !self.videos.is_empty() && self.selected_index + 1 < self.videos.len() {
                     self.selected_index += 1;
-                    self.update_scroll(3);
+                    self.update_scroll(Self::DEFAULT_VISIBLE_ROWS);
                 }
                 Some(AppAction::None)
             }
             KeyCode::Char('h') | KeyCode::Left => {
                 if !self.videos.is_empty() && self.selected_index > 0 {
                     self.selected_index -= 1;
-                    self.update_scroll(3);
+                    self.update_scroll(Self::DEFAULT_VISIBLE_ROWS);
                 }
                 Some(AppAction::None)
             }
