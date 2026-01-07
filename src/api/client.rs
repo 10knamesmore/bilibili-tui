@@ -491,6 +491,41 @@ impl ApiClient {
             .map(|d| d.item.into_iter().filter(|v| v.bvid.is_some()).collect())
             .unwrap_or_default())
     }
+
+    // History API - Get watch history with cursor pagination
+    pub async fn get_history(
+        &self,
+        max: Option<i64>,
+        view_at: Option<i64>,
+        business: Option<&str>,
+    ) -> Result<super::history::HistoryData> {
+        let mut url = format!(
+            "{}/x/web-interface/history/cursor",
+            BilibiliApiDomain::Main.as_str()
+        );
+
+        let mut params = Vec::new();
+        params.push("ps=20".to_string());
+
+        if let Some(m) = max {
+            params.push(format!("max={}", m));
+        }
+        if let Some(v) = view_at {
+            params.push(format!("view_at={}", v));
+        }
+        if let Some(b) = business {
+            params.push(format!("business={}", b));
+        }
+
+        if !params.is_empty() {
+            url.push('?');
+            url.push_str(&params.join("&"));
+        }
+
+        let resp: ApiResponse<super::history::HistoryData> = self.get(&url).await?;
+        resp.data
+            .ok_or_else(|| anyhow::anyhow!("No data in history response"))
+    }
 }
 
 impl Default for ApiClient {

@@ -5,8 +5,8 @@ pub use action::AppAction;
 use crate::api::client::ApiClient;
 use crate::storage::{AppConfig, Credentials, Keybindings};
 use crate::ui::{
-    Component, DynamicPage, HomePage, LoginPage, NavItem, Page, SearchPage, SettingsPage, Sidebar,
-    Theme, ThemeVariant, VideoDetailPage,
+    Component, DynamicPage, HistoryPage, HomePage, LoginPage, NavItem, Page, SearchPage,
+    SettingsPage, Sidebar, Theme, ThemeVariant, VideoDetailPage,
 };
 use ratatui::{
     crossterm::event::{self, Event, KeyCode, KeyEventKind, KeyModifiers},
@@ -22,6 +22,7 @@ pub enum PreviousPage {
     Home,
     Search,
     Dynamic,
+    History,
 }
 
 /// Main application state
@@ -151,6 +152,7 @@ impl App {
             Page::Dynamic(page) => page.draw(frame, area, &self.theme),
             Page::DynamicDetail(page) => page.draw(frame, area, &self.theme),
             Page::VideoDetail(page) => page.draw(frame, area, &self.theme),
+            Page::History(page) => page.draw(frame, area, &self.theme),
             Page::Settings(page) => page.draw(frame, area, &self.theme),
         }
     }
@@ -163,6 +165,7 @@ impl App {
             Page::Dynamic(page) => page.handle_input_with_modifiers(key, modifiers),
             Page::DynamicDetail(page) => page.handle_input(key),
             Page::VideoDetail(page) => page.handle_input(key),
+            Page::History(page) => page.handle_input(key),
             Page::Settings(page) => page.handle_input(key),
         };
 
@@ -270,6 +273,7 @@ impl App {
                     Page::Home(_) => Some(PreviousPage::Home),
                     Page::Search(_) => Some(PreviousPage::Search),
                     Page::Dynamic(_) => Some(PreviousPage::Dynamic),
+                    Page::History(_) => Some(PreviousPage::History),
                     _ => None,
                 };
 
@@ -284,6 +288,7 @@ impl App {
                     Page::Home(_) => Some(PreviousPage::Home),
                     Page::Search(_) => Some(PreviousPage::Search),
                     Page::Dynamic(_) => Some(PreviousPage::Dynamic),
+                    Page::History(_) => Some(PreviousPage::History),
                     _ => None,
                 };
 
@@ -307,6 +312,11 @@ impl App {
                     Some(PreviousPage::Dynamic) => {
                         self.sidebar.select(NavItem::Dynamic);
                         self.current_page = Page::Dynamic(DynamicPage::new());
+                        self.init_current_page().await;
+                    }
+                    Some(PreviousPage::History) => {
+                        self.sidebar.select(NavItem::History);
+                        self.current_page = Page::History(HistoryPage::new());
                         self.init_current_page().await;
                     }
                     None => {
@@ -334,6 +344,17 @@ impl App {
                     let client = self.api_client.clone();
                     page.load_more(&client).await;
                 }
+            }
+            AppAction::LoadMoreHistory => {
+                if let Page::History(page) = &mut self.current_page {
+                    let client = self.api_client.clone();
+                    page.load_more(&client).await;
+                }
+            }
+            AppAction::SwitchToHistory => {
+                self.sidebar.select(NavItem::History);
+                self.current_page = Page::History(HistoryPage::new());
+                self.init_current_page().await;
             }
             AppAction::LoadMoreComments => {
                 if let Page::VideoDetail(page) = &mut self.current_page {
@@ -434,6 +455,12 @@ impl App {
                     self.init_current_page().await;
                 }
             }
+            NavItem::History => {
+                if !matches!(self.current_page, Page::History(_)) {
+                    self.current_page = Page::History(HistoryPage::new());
+                    self.init_current_page().await;
+                }
+            }
             NavItem::Settings => {
                 if !matches!(self.current_page, Page::Settings(_)) {
                     let page = SettingsPage::new(self.keybindings.clone(), self.theme_variant);
@@ -493,6 +520,10 @@ impl App {
             Page::DynamicDetail(_) => {
                 // DynamicDetail is initialized when created
             }
+            Page::History(page) => {
+                let client = self.api_client.clone();
+                page.load_history(&client).await;
+            }
             Page::Settings(_) => {
                 // Settings doesn't need async initialization
             }
@@ -521,6 +552,10 @@ impl App {
                 page.start_cover_downloads();
             }
             Page::VideoDetail(page) => {
+                page.poll_cover_results();
+                page.start_cover_downloads();
+            }
+            Page::History(page) => {
                 page.poll_cover_results();
                 page.start_cover_downloads();
             }

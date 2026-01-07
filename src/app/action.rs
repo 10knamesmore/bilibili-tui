@@ -12,6 +12,8 @@ pub enum AppAction {
     SwitchToLogin,
     /// Switch to settings page
     SwitchToSettings,
+    /// Switch to history page
+    SwitchToHistory,
     /// Login was successful with credentials
     LoginSuccess(Credentials),
     /// Play a video with metadata (bvid, aid, cid, duration)
@@ -41,6 +43,8 @@ pub enum AppAction {
     LoadMoreSearch,
     /// Load more dynamic items
     LoadMoreDynamic,
+    /// Load more history items
+    LoadMoreHistory,
     /// Load more comments in video detail page
     LoadMoreComments,
     /// Toggle comment replies expansion
