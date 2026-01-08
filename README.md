@@ -246,6 +246,25 @@ mise exec cargo build
 mise exec cargo run
 ```
 
+#### 方法五：使用 Nix Flake（NixOS / Nix 用户）
+
+```bash
+# 克隆仓库
+git clone https://github.com/maredevi/bilibili-tui.git
+cd bilibili-tui
+
+# 进入开发环境 / 安装依赖
+nix develop
+
+# 构建
+cargo build --release
+
+# 构建静态版本
+cargo build --release --target x86_64-unknown-linux-musl
+```
+
+> 注意：确保系统中安装了 `mpv` 和 `yt-dlp` 作为运行时依赖。
+
 ## 📖 使用方法
 
 ### 键位绑定
