@@ -6,6 +6,7 @@ authors = ["MareDevi <me@maredevi.moe>"]
 description = "A terminal user interface (TUI) client for Bilibili"
 license = "MIT"
 repository = "https://github.com/MareDevi/bilibili-tui"
+homepage = "https://github.com/MareDevi/bilibili-tui"
 
 [dependencies]
 anyhow = "1.0.100"
