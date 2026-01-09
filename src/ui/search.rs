@@ -3,7 +3,7 @@
 use super::video_card::{VideoCard, VideoCardGrid};
 use super::{Component, Theme};
 use crate::api::client::ApiClient;
-use crate::api::search::SearchVideoItem;
+use crate::api::search::{HotwordItem, SearchVideoItem};
 use crate::app::AppAction;
 use ratatui::{
     crossterm::event::{KeyCode, MouseButton, MouseEvent, MouseEventKind},
@@ -18,6 +18,11 @@ pub struct SearchPage {
     pub loading: bool,
     pub error_message: Option<String>,
     pub input_mode: bool,
+    pub hotwords: Vec<HotwordItem>,
+    pub hotword_error: Option<String>,
+    pub hotword_loading: bool,
+    pub show_hot_list: bool,
+    hot_selected: Option<usize>,
     pub page: i32,
     pub total_results: i32,
     pub loading_more: bool,
@@ -33,6 +38,11 @@ impl SearchPage {
             loading: false,
             error_message: None,
             input_mode: true,
+            hotwords: Vec::new(),
+            hotword_error: None,
+            hotword_loading: false,
+            show_hot_list: true,
+            hot_selected: None,
             page: 1,
             total_results: 0,
             loading_more: false,
@@ -58,6 +68,8 @@ impl SearchPage {
         self.total_results = total;
         self.loading = false;
         self.input_mode = false;
+        self.show_hot_list = false;
+        self.error_message = None;
     }
 
     pub fn append_results(&mut self, results: Vec<SearchVideoItem>) {
@@ -80,10 +92,33 @@ impl SearchPage {
         self.error_message = Some(msg);
         self.loading = false;
         self.loading_more = false;
+        self.show_hot_list = false;
+    }
+
+    pub fn start_hotword_loading(&mut self) {
+        self.hotword_loading = true;
+        self.hotword_error = None;
+        self.hot_selected = None;
+    }
+
+    pub fn set_hotwords(&mut self, hotwords: Vec<HotwordItem>) {
+        self.hotwords = hotwords;
+        self.hotword_loading = false;
+        self.hotword_error = None;
+        self.hot_selected = if self.hotwords.is_empty() {
+            None
+        } else {
+            Some(0)
+        };
+    }
+
+    pub fn set_hotword_error(&mut self, msg: String) {
+        self.hotword_error = Some(msg);
+        self.hotword_loading = false;
     }
 
     pub async fn load_more(&mut self, api_client: &ApiClient) {
-        if self.loading_more || self.query.is_empty() {
+        if self.loading_more || self.query.is_empty() || self.show_hot_list {
             return;
         }
 
@@ -116,6 +151,97 @@ impl SearchPage {
 
     pub fn start_cover_downloads(&mut self) {
         self.grid.start_cover_downloads();
+    }
+
+    fn select_hotword(&mut self, idx: usize) {
+        if idx < self.hotwords.len() {
+            self.hot_selected = Some(idx);
+        }
+    }
+
+    fn search_selected_hotword(&mut self) -> Option<AppAction> {
+        if let Some(idx) = self.hot_selected {
+            if let Some(item) = self.hotwords.get(idx) {
+                if let Some(keyword) = item.keyword_text() {
+                    self.query = keyword.clone();
+                    self.loading = true;
+                    self.page = 1;
+                    self.show_hot_list = false;
+                    return Some(AppAction::Search(keyword));
+                }
+            }
+        }
+        None
+    }
+
+    fn draw_hot_list(&self, frame: &mut Frame, area: Rect, theme: &Theme) {
+        let block = Block::default()
+            .borders(Borders::ALL)
+            .border_type(BorderType::Rounded)
+            .border_style(Style::default().fg(theme.border_subtle))
+            .title(Span::styled(
+                " 热搜榜 ",
+                Style::default().fg(theme.bilibili_pink),
+            ));
+
+        if self.hotword_loading {
+            let loading = Paragraph::new("⏳ 正在获取热搜...")
+                .style(Style::default().fg(theme.fg_secondary))
+                .alignment(Alignment::Center)
+                .block(block);
+            frame.render_widget(loading, area);
+            return;
+        }
+
+        if let Some(err) = &self.hotword_error {
+            let error_widget = Paragraph::new(format!("❌ {}", err))
+                .style(Style::default().fg(theme.error))
+                .alignment(Alignment::Center)
+                .block(block);
+            frame.render_widget(error_widget, area);
+            return;
+        }
+
+        if self.hotwords.is_empty() {
+            let empty = Paragraph::new("暂无热搜数据")
+                .style(Style::default().fg(theme.fg_secondary))
+                .alignment(Alignment::Center)
+                .block(block);
+            frame.render_widget(empty, area);
+            return;
+        }
+
+        let items: Vec<ListItem> = self
+            .hotwords
+            .iter()
+            .enumerate()
+            .map(|(idx, item)| {
+                let mut spans = vec![
+                    Span::styled(
+                        format!("{:>2}. ", idx + 1),
+                        Style::default().fg(theme.fg_muted),
+                    ),
+                    Span::styled(item.display_text(), Style::default().fg(theme.fg_primary)),
+                ];
+
+                if let Some(badge) = item.badge() {
+                    spans.push(Span::styled(
+                        format!(" [{}]", badge),
+                        Style::default().fg(theme.bilibili_pink),
+                    ));
+                }
+
+                ListItem::new(Line::from(spans))
+            })
+            .collect();
+
+        let list = List::new(items)
+            .block(block)
+            .highlight_style(Style::default().fg(theme.bilibili_pink))
+            .highlight_symbol("▶ ");
+
+        let mut state = ListState::default().with_selected(self.hot_selected);
+        frame.render_stateful_widget(list, area, &mut state);
     }
 }
 
@@ -163,7 +289,9 @@ impl Component for SearchPage {
         frame.render_widget(input, chunks[0]);
 
         // Results
-        if self.loading {
+        if self.show_hot_list {
+            self.draw_hot_list(frame, chunks[1], theme);
+        } else if self.loading {
             let loading = Paragraph::new("⏳ 搜索中...")
                 .style(Style::default().fg(theme.warning))
                 .alignment(Alignment::Center)
@@ -256,17 +384,46 @@ impl Component for SearchPage {
             match key {
                 KeyCode::Char(c) => {
                     self.query.push(c);
+                    self.show_hot_list = true;
+                    if self.hot_selected.is_none() && !self.hotwords.is_empty() {
+                        self.hot_selected = Some(0);
+                    }
                     Some(AppAction::None)
                 }
                 KeyCode::Backspace => {
                     self.query.pop();
+                    self.show_hot_list = true;
+                    if self.hot_selected.is_none() && !self.hotwords.is_empty() {
+                        self.hot_selected = Some(0);
+                    }
+                    Some(AppAction::None)
+                }
+                KeyCode::Up => {
+                    if self.show_hot_list && !self.hotwords.is_empty() {
+                        let len = self.hotwords.len();
+                        let current = self.hot_selected.unwrap_or(0);
+                        let next = if current == 0 { len - 1 } else { current - 1 };
+                        self.hot_selected = Some(next);
+                    }
+                    Some(AppAction::None)
+                }
+                KeyCode::Down => {
+                    if self.show_hot_list && !self.hotwords.is_empty() {
+                        let len = self.hotwords.len();
+                        let current = self.hot_selected.unwrap_or(0);
+                        let next = (current + 1) % len;
+                        self.hot_selected = Some(next);
+                    }
                     Some(AppAction::None)
                 }
                 KeyCode::Enter => {
-                    if !self.query.is_empty() {
+                    if !self.query.trim().is_empty() {
                         self.loading = true;
                         self.page = 1;
+                        self.show_hot_list = false;
                         Some(AppAction::Search(self.query.clone()))
+                    } else if self.show_hot_list {
+                        self.search_selected_hotword()
                     } else {
                         Some(AppAction::None)
                     }
@@ -276,6 +433,36 @@ impl Component for SearchPage {
                     Some(AppAction::None)
                 }
                 KeyCode::Tab => Some(AppAction::NavNext),
+                _ => Some(AppAction::None),
+            }
+        } else if self.show_hot_list {
+            match key {
+                KeyCode::Up => {
+                    if !self.hotwords.is_empty() {
+                        let len = self.hotwords.len();
+                        let current = self.hot_selected.unwrap_or(0);
+                        let next = if current == 0 { len - 1 } else { current - 1 };
+                        self.hot_selected = Some(next);
+                    }
+                    Some(AppAction::None)
+                }
+                KeyCode::Down => {
+                    if !self.hotwords.is_empty() {
+                        let len = self.hotwords.len();
+                        let current = self.hot_selected.unwrap_or(0);
+                        let next = (current + 1) % len;
+                        self.hot_selected = Some(next);
+                    }
+                    Some(AppAction::None)
+                }
+                KeyCode::Enter => self.search_selected_hotword(),
+                KeyCode::Char('/') | KeyCode::Char('i') => {
+                    self.input_mode = true;
+                    self.show_hot_list = true;
+                    Some(AppAction::None)
+                }
+                KeyCode::Tab => Some(AppAction::NavNext),
+                KeyCode::Char('q') => Some(AppAction::Quit),
                 _ => Some(AppAction::None),
             }
         } else {
@@ -310,6 +497,10 @@ impl Component for SearchPage {
                 }
                 KeyCode::Char('/') | KeyCode::Char('i') => {
                     self.input_mode = true;
+                    self.show_hot_list = true;
+                    if self.hot_selected.is_none() && !self.hotwords.is_empty() {
+                        self.hot_selected = Some(0);
+                    }
                     Some(AppAction::None)
                 }
                 KeyCode::Tab => Some(AppAction::NavNext),
@@ -322,6 +513,60 @@ impl Component for SearchPage {
     fn handle_mouse(&mut self, event: MouseEvent, area: Rect) -> Option<AppAction> {
         // Don't handle mouse in input mode
         if self.input_mode {
+            return None;
+        }
+
+        // Handle hot list mouse interactions
+        if self.show_hot_list {
+            let chunks = Layout::default()
+                .direction(Direction::Vertical)
+                .constraints([
+                    Constraint::Length(3),
+                    Constraint::Min(10),
+                    Constraint::Length(2),
+                ])
+                .split(area);
+
+            let list_area = chunks[1];
+
+            if !list_area.contains(ratatui::layout::Position::new(event.column, event.row)) {
+                return None;
+            }
+
+            return match event.kind {
+                MouseEventKind::Down(MouseButton::Left) => {
+                    // Convert click position to list index (account for top border)
+                    let row_offset = event.row.saturating_sub(list_area.y + 1);
+                    let idx = row_offset as usize;
+                    if idx < self.hotwords.len() {
+                        self.select_hotword(idx);
+                        return self.search_selected_hotword();
+                    }
+                    None
+                }
+                MouseEventKind::ScrollDown => {
+                    if !self.hotwords.is_empty() {
+                        let len = self.hotwords.len();
+                        let current = self.hot_selected.unwrap_or(0);
+                        let next = (current + 1) % len;
+                        self.hot_selected = Some(next);
+                    }
+                    Some(AppAction::None)
+                }
+                MouseEventKind::ScrollUp => {
+                    if !self.hotwords.is_empty() {
+                        let len = self.hotwords.len();
+                        let current = self.hot_selected.unwrap_or(0);
+                        let next = if current == 0 { len - 1 } else { current - 1 };
+                        self.hot_selected = Some(next);
+                    }
+                    Some(AppAction::None)
+                }
+                _ => None,
+            };
+        }
+
+        if self.show_hot_list {
             return None;
         }
 

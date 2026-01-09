@@ -59,3 +59,53 @@ impl SearchVideoItem {
         })
     }
 }
+
+/// Hot search item from web endpoint
+#[derive(Debug, Clone, Deserialize)]
+pub struct HotwordItem {
+    pub keyword: Option<String>,
+    pub show_name: Option<String>,
+    pub icon: Option<String>,
+    pub pos: Option<i32>,
+    pub word_type: Option<i32>,
+}
+
+impl HotwordItem {
+    /// Display name prefers show_name over keyword
+    pub fn display_text(&self) -> String {
+        self.show_name
+            .as_ref()
+            .or(self.keyword.as_ref())
+            .cloned()
+            .unwrap_or_else(|| "-".to_string())
+    }
+
+    /// Keyword to trigger search
+    pub fn keyword_text(&self) -> Option<String> {
+        self.keyword
+            .clone()
+            .or_else(|| self.show_name.clone())
+            .filter(|s| !s.is_empty())
+    }
+
+    /// Optional badge based on word_type
+    pub fn badge(&self) -> Option<&'static str> {
+        match self.word_type.unwrap_or_default() {
+            4 => Some("新"),
+            5 => Some("热"),
+            7 => Some("直播"),
+            9 => Some("梗"),
+            11 => Some("话题"),
+            12 => Some("独家"),
+            _ => None,
+        }
+    }
+}
+
+/// Response for hot search list (web)
+#[derive(Debug, Deserialize)]
+pub struct HotwordResponse {
+    pub code: Option<i32>,
+    pub message: Option<String>,
+    pub list: Option<Vec<HotwordItem>>, // Top 10 hot words
+}

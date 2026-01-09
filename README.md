@@ -203,8 +203,6 @@ paru -S bilibili-tui
 paru -S bilibili-tui-bin
 ```
 
-> 这是 Arch Linux 用户最便捷的安装方式，无需手动编译，自动处理依赖关系。
-
 #### 方法二：使用 Homebrew (macOS/Linux)
 
 ```bash

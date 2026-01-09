@@ -381,6 +381,7 @@ impl App {
                     Some(PreviousPage::Search) => {
                         self.sidebar.select(NavItem::Search);
                         self.current_page = Page::Search(SearchPage::new());
+                        self.init_current_page().await;
                     }
                     Some(PreviousPage::Dynamic) => {
                         self.sidebar.select(NavItem::Dynamic);
@@ -587,6 +588,7 @@ impl App {
             NavItem::Search => {
                 if !matches!(self.current_page, Page::Search(_)) {
                     self.current_page = Page::Search(SearchPage::new());
+                    self.init_current_page().await;
                 }
             }
             NavItem::Dynamic => {
@@ -620,8 +622,14 @@ impl App {
                 let client = self.api_client.clone();
                 page.load_recommendations(&client).await;
             }
-            Page::Search(_) => {
-                // Search page doesn't need initialization
+            Page::Search(page) => {
+                let client = self.api_client.clone();
+                page.start_hotword_loading();
+
+                match client.get_hot_search().await {
+                    Ok(list) => page.set_hotwords(list),
+                    Err(e) => page.set_hotword_error(format!("加载热搜失败: {}", e)),
+                }
             }
             Page::Dynamic(page) => {
                 let client = self.api_client.clone();

@@ -2,7 +2,7 @@
 
 use super::wbi;
 use crate::storage::Credentials;
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use reqwest::header::{HeaderMap, HeaderValue, COOKIE, REFERER, USER_AGENT};
 use reqwest::Client;
 use serde::Deserialize;
@@ -298,6 +298,29 @@ impl ApiClient {
             page: Some(page),
             pagesize: Some(20),
         }))
+    }
+
+    /// Fetch hot search keywords (web)
+    pub async fn get_hot_search(&self) -> Result<Vec<super::search::HotwordItem>> {
+        const HOTWORD_URL: &str = "https://s.search.bilibili.com/main/hotword";
+
+        let mut req = self.client.get(HOTWORD_URL);
+
+        if let Some(ref cookies) = *self.cookies.read().expect("cookies lock poisoned") {
+            req = req.header(COOKIE, cookies.as_str());
+        }
+
+        let resp = req.send().await?;
+        let data: super::search::HotwordResponse = resp.json().await?;
+
+        if let Some(code) = data.code {
+            if code != 0 {
+                let msg = data.message.unwrap_or_else(|| "unknown error".to_string());
+                return Err(anyhow!("Hot search API error: {}", msg));
+            }
+        }
+
+        Ok(data.list.unwrap_or_default())
     }
 
     // Dynamic Feed API
