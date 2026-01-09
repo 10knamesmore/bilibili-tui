@@ -20,26 +20,23 @@ pub fn get_mixin_key(img_key: &str, sub_key: &str) -> String {
         .collect::<String>()
 }
 
-/// URL encode a string (RFC 3986 compliant)
+// URL encode (filter out !'()* and percent-encode the rest)
 fn url_encode(s: &str) -> String {
-    use std::fmt::Write;
-
-    // ✅ 预分配容量 (估算: 每个非ASCII字符最多编码为 %XX%XX%XX%XX = 12字符)
-    let mut result = String::with_capacity(s.len() * 3);
-
-    for c in s.chars() {
-        if c.is_ascii_alphanumeric() || "-_.~".contains(c) {
-            result.push(c);
-        } else if !"!'()*".contains(c) {
-            // URL encode: 每个字节变成 %XX
-            for byte in c.encode_utf8(&mut [0; 4]).bytes() {
-                let _ = write!(result, "%{:02X}", byte);
+    s.chars()
+        .filter_map(|c| match c.is_ascii_alphanumeric() || "-_.~".contains(c) {
+            true => Some(c.to_string()),
+            false => {
+                if "!'()*".contains(c) {
+                    return None;
+                }
+                let encoded = c
+                    .encode_utf8(&mut [0; 4])
+                    .bytes()
+                    .fold(String::new(), |acc, b| acc + &format!("%{:02X}", b));
+                Some(encoded)
             }
-        }
-        // else: 过滤掉 !'()* 字符
-    }
-
-    result
+        })
+        .collect::<String>()
 }
 
 /// Sign request parameters with WBI
@@ -74,8 +71,8 @@ pub fn encode_wbi_with_timestamp(
         .collect::<Vec<_>>()
         .join("&");
 
-    // Calculate w_rid
-    let w_rid = format!("{:x}", md5::compute(format!("{}{}", query, mixin_key)));
+    // Calculate w_rid (keep in sync with tests/wbi.rs logic)
+    let w_rid = format!("{:?}", md5::compute(query.clone() + &mixin_key));
 
     // Return final query
     format!("{}&w_rid={}", query, w_rid)
