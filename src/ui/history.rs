@@ -492,20 +492,6 @@ impl HistoryPage {
             frame.render_widget(placeholder, chunks[0]);
         }
 
-        // Progress bar overlay on cover
-        if card.item.duration > 0 && card.item.progress > 0 {
-            let progress_pct = card.item.progress_percent();
-            let bar_width = ((chunks[0].width as f64 * progress_pct / 100.0) as u16).max(1);
-            let bar_area = Rect::new(
-                chunks[0].x,
-                chunks[0].y + chunks[0].height.saturating_sub(1),
-                bar_width.min(chunks[0].width),
-                1,
-            );
-            let progress_bar = Block::default().style(Style::default().bg(theme.bilibili_pink));
-            frame.render_widget(progress_bar, bar_area);
-        }
-
         // Info area
         let info_chunks = Layout::default()
             .direction(Direction::Vertical)
