@@ -137,7 +137,7 @@ impl Component for SettingsPage {
         let help_line = Line::from(vec![
             Span::styled(" [", Style::default().fg(theme.fg_secondary)),
             Span::styled(
-                "Tab",
+                "[]",
                 Style::default()
                     .fg(theme.fg_accent)
                     .add_modifier(Modifier::BOLD),
@@ -164,13 +164,11 @@ impl Component for SettingsPage {
             Span::styled("确认", Style::default().fg(theme.fg_secondary)),
             Span::styled("  [", Style::default().fg(theme.fg_secondary)),
             Span::styled(
-                "Esc",
-                Style::default()
-                    .fg(theme.warning)
-                    .add_modifier(Modifier::BOLD),
+                "Tab",
+                Style::default().fg(theme.info).add_modifier(Modifier::BOLD),
             ),
             Span::styled("] ", Style::default().fg(theme.fg_secondary)),
-            Span::styled("返回", Style::default().fg(theme.fg_secondary)),
+            Span::styled("切页面", Style::default().fg(theme.fg_secondary)),
         ]);
         let help = Paragraph::new(help_line).alignment(Alignment::Center);
         frame.render_widget(help, main_chunks[2]);
@@ -179,8 +177,21 @@ impl Component for SettingsPage {
     fn handle_input(&mut self, key: KeyCode) -> Option<AppAction> {
         match key {
             KeyCode::Esc => Some(AppAction::BackToList),
-            KeyCode::Tab => {
-                // Cycle through sections
+            KeyCode::Tab => Some(AppAction::NavNext),
+            KeyCode::BackTab => Some(AppAction::NavPrev),
+            KeyCode::Char('[') => {
+                // Cycle through sections backwards
+                let sections = SettingsSection::all();
+                self.section_index = if self.section_index == 0 {
+                    sections.len() - 1
+                } else {
+                    self.section_index - 1
+                };
+                self.current_section = sections[self.section_index];
+                Some(AppAction::None)
+            }
+            KeyCode::Char(']') => {
+                // Cycle through sections forwards
                 let sections = SettingsSection::all();
                 self.section_index = (self.section_index + 1) % sections.len();
                 self.current_section = sections[self.section_index];

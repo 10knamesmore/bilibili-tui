@@ -562,9 +562,11 @@ impl Component for DynamicPage {
         }
 
         // Help
-        let help = Paragraph::new("↑↓←→/hjkl:卡片导航 | Tab/Shift+Tab:切UP主 | []:切标签 | 1-4:直达 | Enter:详情 | r:刷新 | n:切页面")
-            .style(Style::default().fg(theme.fg_secondary))
-            .alignment(Alignment::Center);
+        let help = Paragraph::new(
+            "↑↓←→:卡片导航 | h/l:切UP主 | []:切标签 | Tab:切页面 | Enter:详情 | r:刷新",
+        )
+        .style(Style::default().fg(theme.fg_secondary))
+        .alignment(Alignment::Center);
         frame.render_widget(help, chunks[3]);
     }
 
@@ -597,42 +599,25 @@ impl Component for DynamicPage {
                 Some(AppAction::None)
             }
 
-            // Card navigation - vim keys (hjkl)
-            (KeyCode::Char('j'), KeyModifiers::NONE) => {
-                self.grid.move_down();
-                if self.grid.is_near_bottom(3) && !self.loading_more && self.has_more {
-                    return Some(AppAction::LoadMoreDynamic);
-                }
-                Some(AppAction::None)
-            }
-            (KeyCode::Char('k'), KeyModifiers::NONE) => {
-                self.grid.move_up();
-                Some(AppAction::None)
-            }
+            // UP master navigation - h (previous), l (next)
             (KeyCode::Char('h'), KeyModifiers::NONE) => {
-                self.grid.move_left();
-                Some(AppAction::None)
-            }
-            (KeyCode::Char('l'), KeyModifiers::NONE) => {
-                self.grid.move_right();
-                Some(AppAction::None)
-            }
-
-            // UP master navigation - Shift+Tab (previous), Tab (next)
-            (KeyCode::BackTab, _) => {
                 if self.selected_up_index > 0 {
                     Some(AppAction::SelectUpMaster(self.selected_up_index - 1))
                 } else {
                     Some(AppAction::None)
                 }
             }
-            (KeyCode::Tab, KeyModifiers::NONE) => {
+            (KeyCode::Char('l'), KeyModifiers::NONE) => {
                 if self.selected_up_index < self.up_list.len() {
                     Some(AppAction::SelectUpMaster(self.selected_up_index + 1))
                 } else {
                     Some(AppAction::None)
                 }
             }
+
+            // Tab switches sidebar navigation (consistent with other pages)
+            (KeyCode::Tab, KeyModifiers::NONE) => Some(AppAction::NavNext),
+            (KeyCode::BackTab, _) => Some(AppAction::NavPrev),
 
             // Tab switching - [ and ] keys
             (KeyCode::Char('['), KeyModifiers::NONE) => {
@@ -688,9 +673,6 @@ impl Component for DynamicPage {
                 self.grid.clear();
                 Some(AppAction::RefreshDynamic)
             }
-
-            // Navigate to next sidebar item
-            (KeyCode::Char('n'), KeyModifiers::NONE) => Some(AppAction::NavNext),
 
             // Quit
             (KeyCode::Char('q'), KeyModifiers::NONE) => Some(AppAction::Quit),
