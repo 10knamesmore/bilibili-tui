@@ -193,9 +193,13 @@ src/
 
 ```bash
 # 使用 yay
+# 源代码构建
+yay -S bilibili-tui
+# 二进制预编译
 yay -S bilibili-tui-bin
 
 # 或使用 paru
+paru -S bilibili-tui
 paru -S bilibili-tui-bin
 ```
 
