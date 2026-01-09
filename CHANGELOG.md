@@ -1,5 +1,14 @@
 ## [unreleased]
 
+### 🚜 Refactor
+
+- *(wbi)* Simplify URL encoding logic and improve readability
+
+### ⚙️ Miscellaneous Tasks
+
+- Bump version to 1.0.6
+## [1.0.5] - 2026-01-09
+
 ### 🚀 Features
 
 - Add Homebrew dependencies and enhance mouse support in README
@@ -14,6 +23,11 @@
 ### 📚 Documentation
 
 - *(readme)* Add Homebrew installation instructions
+
+### ⚙️ Miscellaneous Tasks
+
+- Bump version to 1.0.5 and add CHANGELOG
+- *(dist)* Move homebrew dependencies to dist configuration
 ## [1.0.4] - 2026-01-09
 
 ### 🚀 Features
