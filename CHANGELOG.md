@@ -1,4 +1,12 @@
-## [unreleased]
+## [1.0.7] - 2026-01-12
+
+### 🚀 Features
+
+- *(nav)* Support nav back on search & home
+- *(app)* Add home page caching and refresh action
+- Add custom keybindings support and persistence
+- *(ui)* Improve QR code scannability and centering
+## [1.0.6] - 2026-01-09
 
 ### 🚜 Refactor
 
@@ -7,6 +15,7 @@
 ### ⚙️ Miscellaneous Tasks
 
 - Bump version to 1.0.6
+- Update CHANGELOG for version 1.0.6 and add refactor details
 ## [1.0.5] - 2026-01-09
 
 ### 🚀 Features
