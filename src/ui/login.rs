@@ -8,7 +8,7 @@ use crate::storage::Credentials;
 use qrcode::QrCode;
 use ratatui::{crossterm::event::KeyCode, prelude::*, widgets::*};
 use std::time::{Duration, Instant};
-use tui_qrcode::QrCodeWidget;
+use tui_qrcode::{Colors, QrCodeWidget, QuietZone};
 
 pub struct LoginPage {
     qrcode_data: Option<QrcodeData>,
@@ -182,9 +182,28 @@ impl Component for LoginPage {
             let inner_area = qr_block.inner(chunks[1]);
 
             if let Ok(qr_code) = QrCode::new(&qrcode_data.url) {
-                // Center the QR code
-                let qr_area = centered_rect(60, 90, inner_area);
-                let qr_widget = QrCodeWidget::new(qr_code);
+                // Create QR code widget with optimized settings for scanning:
+                // - Inverted colors: black modules on white background (standard QR format)
+                // - QuietZone::Enabled: white border around QR for better scanning
+                let qr_widget = QrCodeWidget::new(qr_code)
+                    .colors(Colors::Inverted)
+                    .quiet_zone(QuietZone::Enabled)
+                    .style(Style::default().fg(Color::Black).bg(Color::White));
+
+                // Get the actual size the QR code will render at
+                let qr_size = qr_widget.size(inner_area);
+
+                // Center the QR code based on its actual size
+                let x_offset = (inner_area.width.saturating_sub(qr_size.width)) / 2;
+                let y_offset = (inner_area.height.saturating_sub(qr_size.height)) / 2;
+
+                let qr_area = Rect::new(
+                    inner_area.x + x_offset,
+                    inner_area.y + y_offset,
+                    qr_size.width.min(inner_area.width),
+                    qr_size.height.min(inner_area.height),
+                );
+
                 frame.render_widget(qr_widget, qr_area);
             }
         } else {
@@ -261,25 +280,4 @@ impl Component for LoginPage {
         }
         Some(AppAction::None)
     }
-}
-
-/// Helper to create a centered rect
-fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
-    let popup_layout = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Percentage((100 - percent_y) / 2),
-            Constraint::Percentage(percent_y),
-            Constraint::Percentage((100 - percent_y) / 2),
-        ])
-        .split(r);
-
-    Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints([
-            Constraint::Percentage((100 - percent_x) / 2),
-            Constraint::Percentage(percent_x),
-            Constraint::Percentage((100 - percent_x) / 2),
-        ])
-        .split(popup_layout[1])[1]
 }
