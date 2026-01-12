@@ -586,7 +586,11 @@ impl Component for VideoDetailPage {
         frame.render_widget(help, help_chunk);
     }
 
-    fn handle_input(&mut self, key: KeyCode) -> Option<AppAction> {
+    fn handle_input(
+        &mut self,
+        key: KeyCode,
+        keys: &crate::storage::Keybindings,
+    ) -> Option<AppAction> {
         // Handle input mode for adding comments
         if self.input_mode {
             match key {
@@ -621,117 +625,116 @@ impl Component for VideoDetailPage {
             }
         }
 
-        match key {
-            KeyCode::Char('q') | KeyCode::Esc => Some(AppAction::BackToList),
-            KeyCode::Char('p') => {
-                let (cid, duration) = if let Some(info) = &self.video_info {
-                    (info.cid, info.duration.unwrap_or(0))
-                } else {
-                    (0, 0)
-                };
-                Some(AppAction::PlayVideo {
-                    bvid: self.bvid.clone(),
-                    aid: self.aid,
-                    cid,
-                    duration,
-                })
-            }
-            KeyCode::Char('c') => {
-                // Enter comment input mode
-                self.input_mode = true;
-                self.input_buffer.clear();
-                Some(AppAction::None)
-            }
-            KeyCode::Char('r') => {
-                if self.focus == DetailFocus::Comments {
-                    Some(AppAction::ToggleCommentReplies)
-                } else {
-                    Some(AppAction::None)
-                }
-            }
-            KeyCode::Tab => {
-                self.focus = match self.focus {
-                    DetailFocus::Comments => DetailFocus::Related,
-                    DetailFocus::Related => DetailFocus::Comments,
-                };
-                Some(AppAction::None)
-            }
-            KeyCode::Char('j') | KeyCode::Down => {
-                match self.focus {
-                    DetailFocus::Comments => {
-                        if self.comment_scroll + 1 < self.comments.len() {
-                            self.comment_scroll += 1;
-                        }
-                        // Check if near bottom to load more comments
-                        if self.is_near_comments_bottom(10)
-                            && self.has_more_comments
-                            && !self.loading_more_comments
-                        {
-                            return Some(AppAction::LoadMoreComments);
-                        }
-                    }
-                    DetailFocus::Related => {
-                        if self.related_card_grid.move_down() {
-                            self.related_scroll = self.related_card_grid.selected_index;
-                        }
-                    }
-                }
-                Some(AppAction::None)
-            }
-            KeyCode::Char('k') | KeyCode::Up => {
-                match self.focus {
-                    DetailFocus::Comments => {
-                        if self.comment_scroll > 0 {
-                            self.comment_scroll -= 1;
-                        }
-                    }
-                    DetailFocus::Related => {
-                        if self.related_card_grid.move_up() {
-                            self.related_scroll = self.related_card_grid.selected_index;
-                        }
-                    }
-                }
-                Some(AppAction::None)
-            }
-            KeyCode::Char('h') | KeyCode::Left => {
-                if self.focus == DetailFocus::Related && self.related_card_grid.move_left() {
-                    self.related_scroll = self.related_card_grid.selected_index;
-                }
-                Some(AppAction::None)
-            }
-            KeyCode::Char('l') | KeyCode::Right => {
-                if self.focus == DetailFocus::Related && self.related_card_grid.move_right() {
-                    self.related_scroll = self.related_card_grid.selected_index;
-                }
-                Some(AppAction::None)
-            }
-            KeyCode::Enter => {
-                match self.focus {
-                    DetailFocus::Comments => {
-                        // Like the currently selected comment
-                        if self.comment_scroll < self.comments.len() {
-                            let comment = &self.comments[self.comment_scroll];
-                            return Some(AppAction::LikeComment {
-                                oid: self.aid,
-                                rpid: comment.rpid,
-                                comment_type: 1,
-                            });
-                        }
-                        Some(AppAction::None)
-                    }
-                    DetailFocus::Related => {
-                        if let Some(card) = self.related_card_grid.selected_card() {
-                            if let Some(bvid) = &card.bvid {
-                                let aid = card.aid.unwrap_or(0);
-                                return Some(AppAction::OpenVideoDetail(bvid.clone(), aid));
-                            }
-                        }
-                        Some(AppAction::None)
-                    }
-                }
-            }
-            _ => Some(AppAction::None),
+        if keys.matches_quit(key) || keys.matches_back(key) {
+            return Some(AppAction::BackToList);
         }
+        if keys.matches_play(key) {
+            let (cid, duration) = if let Some(info) = &self.video_info {
+                (info.cid, info.duration.unwrap_or(0))
+            } else {
+                (0, 0)
+            };
+            return Some(AppAction::PlayVideo {
+                bvid: self.bvid.clone(),
+                aid: self.aid,
+                cid,
+                duration,
+            });
+        }
+        if keys.matches_comment(key) {
+            // Enter comment input mode
+            self.input_mode = true;
+            self.input_buffer.clear();
+            return Some(AppAction::None);
+        }
+        if keys.matches_toggle_replies(key) {
+            if self.focus == DetailFocus::Comments {
+                return Some(AppAction::ToggleCommentReplies);
+            }
+            return Some(AppAction::None);
+        }
+        // Tab switches focus between Comments and Related (page-specific, not nav)
+        if key == KeyCode::Tab {
+            self.focus = match self.focus {
+                DetailFocus::Comments => DetailFocus::Related,
+                DetailFocus::Related => DetailFocus::Comments,
+            };
+            return Some(AppAction::None);
+        }
+        if keys.matches_down(key) {
+            match self.focus {
+                DetailFocus::Comments => {
+                    if self.comment_scroll + 1 < self.comments.len() {
+                        self.comment_scroll += 1;
+                    }
+                    // Check if near bottom to load more comments
+                    if self.is_near_comments_bottom(10)
+                        && self.has_more_comments
+                        && !self.loading_more_comments
+                    {
+                        return Some(AppAction::LoadMoreComments);
+                    }
+                }
+                DetailFocus::Related => {
+                    if self.related_card_grid.move_down() {
+                        self.related_scroll = self.related_card_grid.selected_index;
+                    }
+                }
+            }
+            return Some(AppAction::None);
+        }
+        if keys.matches_up(key) {
+            match self.focus {
+                DetailFocus::Comments => {
+                    if self.comment_scroll > 0 {
+                        self.comment_scroll -= 1;
+                    }
+                }
+                DetailFocus::Related => {
+                    if self.related_card_grid.move_up() {
+                        self.related_scroll = self.related_card_grid.selected_index;
+                    }
+                }
+            }
+            return Some(AppAction::None);
+        }
+        if keys.matches_left(key) {
+            if self.focus == DetailFocus::Related && self.related_card_grid.move_left() {
+                self.related_scroll = self.related_card_grid.selected_index;
+            }
+            return Some(AppAction::None);
+        }
+        if keys.matches_right(key) {
+            if self.focus == DetailFocus::Related && self.related_card_grid.move_right() {
+                self.related_scroll = self.related_card_grid.selected_index;
+            }
+            return Some(AppAction::None);
+        }
+        if keys.matches_confirm(key) {
+            match self.focus {
+                DetailFocus::Comments => {
+                    // Like the currently selected comment
+                    if self.comment_scroll < self.comments.len() {
+                        let comment = &self.comments[self.comment_scroll];
+                        return Some(AppAction::LikeComment {
+                            oid: self.aid,
+                            rpid: comment.rpid,
+                            comment_type: 1,
+                        });
+                    }
+                }
+                DetailFocus::Related => {
+                    if let Some(card) = self.related_card_grid.selected_card() {
+                        if let Some(bvid) = &card.bvid {
+                            let aid = card.aid.unwrap_or(0);
+                            return Some(AppAction::OpenVideoDetail(bvid.clone(), aid));
+                        }
+                    }
+                }
+            }
+            return Some(AppAction::None);
+        }
+        Some(AppAction::None)
     }
 
     fn handle_mouse(&mut self, event: MouseEvent, area: Rect) -> Option<AppAction> {

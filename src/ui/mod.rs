@@ -23,6 +23,7 @@ pub use video_card::{VideoCard, VideoCardGrid};
 pub use video_detail::VideoDetailPage;
 
 use crate::app::AppAction;
+use crate::storage::Keybindings;
 use ratatui::{
     crossterm::event::{KeyCode, KeyModifiers, MouseEvent},
     prelude::Rect,
@@ -32,17 +33,18 @@ use ratatui::{
 /// UI Component trait
 pub trait Component {
     fn draw(&mut self, frame: &mut Frame, area: Rect, theme: &Theme);
-    fn handle_input(&mut self, key: KeyCode) -> Option<AppAction> {
-        let _ = key;
+    fn handle_input(&mut self, key: KeyCode, keys: &Keybindings) -> Option<AppAction> {
+        let _ = (key, keys);
         None
     }
     fn handle_input_with_modifiers(
         &mut self,
         key: KeyCode,
         modifiers: KeyModifiers,
+        keys: &Keybindings,
     ) -> Option<AppAction> {
         let _ = modifiers;
-        self.handle_input(key)
+        self.handle_input(key, keys)
     }
     fn handle_mouse(&mut self, event: MouseEvent, area: Rect) -> Option<AppAction> {
         let _ = (event, area);
@@ -59,5 +61,5 @@ pub enum Page {
     DynamicDetail(Box<DynamicDetailPage>),
     VideoDetail(Box<VideoDetailPage>),
     History(HistoryPage),
-    Settings(SettingsPage),
+    Settings(Box<SettingsPage>),
 }

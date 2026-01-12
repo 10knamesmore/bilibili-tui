@@ -234,15 +234,16 @@ impl App {
     }
 
     async fn handle_input(&mut self, key: KeyCode, modifiers: KeyModifiers) {
+        let keys = &self.keybindings;
         let action = match &mut self.current_page {
-            Page::Login(page) => page.handle_input(key),
-            Page::Home(page) => page.handle_input(key),
-            Page::Search(page) => page.handle_input(key),
-            Page::Dynamic(page) => page.handle_input_with_modifiers(key, modifiers),
-            Page::DynamicDetail(page) => page.handle_input(key),
-            Page::VideoDetail(page) => page.handle_input(key),
-            Page::History(page) => page.handle_input(key),
-            Page::Settings(page) => page.handle_input(key),
+            Page::Login(page) => page.handle_input(key, keys),
+            Page::Home(page) => page.handle_input(key, keys),
+            Page::Search(page) => page.handle_input(key, keys),
+            Page::Dynamic(page) => page.handle_input_with_modifiers(key, modifiers, keys),
+            Page::DynamicDetail(page) => page.handle_input(key, keys),
+            Page::VideoDetail(page) => page.handle_input(key, keys),
+            Page::History(page) => page.handle_input(key, keys),
+            Page::Settings(page) => page.handle_input(key, keys),
         };
 
         if let Some(action) = action {
@@ -533,7 +534,7 @@ impl App {
             AppAction::SwitchToSettings => {
                 self.sidebar.select(NavItem::Settings);
                 let page = SettingsPage::new(self.keybindings.clone(), self.theme_variant);
-                self.current_page = Page::Settings(page);
+                self.current_page = Page::Settings(Box::new(page));
             }
             AppAction::Logout => {
                 if let Err(e) = crate::storage::delete_credentials() {
@@ -610,6 +611,13 @@ impl App {
                     }
                 }
             }
+            AppAction::SaveKeybindings(new_keybindings) => {
+                self.keybindings = (*new_keybindings).clone();
+                self.config.keybindings = *new_keybindings;
+                if let Err(e) = crate::storage::save_config(&self.config) {
+                    eprintln!("Failed to save keybindings: {}", e);
+                }
+            }
             AppAction::None => {}
         }
     }
@@ -657,7 +665,7 @@ impl App {
             NavItem::Settings => {
                 if !matches!(self.current_page, Page::Settings(_)) {
                     let page = SettingsPage::new(self.keybindings.clone(), self.theme_variant);
-                    self.current_page = Page::Settings(page);
+                    self.current_page = Page::Settings(Box::new(page));
                 }
             }
         }

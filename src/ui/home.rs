@@ -348,74 +348,77 @@ impl Component for HomePage {
         frame.render_widget(help, chunks[2]);
     }
 
-    fn handle_input(&mut self, key: KeyCode) -> Option<AppAction> {
-        match key {
-            KeyCode::Char('q') => Some(AppAction::Quit),
-            KeyCode::Char('j') | KeyCode::Down => {
-                if !self.videos.is_empty() {
-                    let new_idx = self.selected_index + self.columns;
-                    if new_idx < self.videos.len() {
-                        self.selected_index = new_idx;
-                    }
-                    self.update_scroll(Self::DEFAULT_VISIBLE_ROWS);
-                    // Check for pagination
-                    if self.is_near_bottom(Self::DEFAULT_VISIBLE_ROWS) && !self.loading_more {
-                        return Some(AppAction::LoadMoreRecommendations);
-                    }
-                }
-                Some(AppAction::None)
-            }
-            KeyCode::Char('k') | KeyCode::Up => {
-                if !self.videos.is_empty() && self.selected_index >= self.columns {
-                    self.selected_index -= self.columns;
-                    self.update_scroll(Self::DEFAULT_VISIBLE_ROWS);
-                }
-                Some(AppAction::None)
-            }
-            KeyCode::Char('l') | KeyCode::Right => {
-                if !self.videos.is_empty() && self.selected_index + 1 < self.videos.len() {
-                    self.selected_index += 1;
-                    self.update_scroll(Self::DEFAULT_VISIBLE_ROWS);
-                }
-                Some(AppAction::None)
-            }
-            KeyCode::Char('h') | KeyCode::Left => {
-                if !self.videos.is_empty() && self.selected_index > 0 {
-                    self.selected_index -= 1;
-                    self.update_scroll(Self::DEFAULT_VISIBLE_ROWS);
-                }
-                Some(AppAction::None)
-            }
-            KeyCode::Enter => {
-                if let Some(card) = self.videos.get(self.selected_index) {
-                    if let Some(bvid) = &card.video.bvid {
-                        let aid = card.video.id;
-                        return Some(AppAction::OpenVideoDetail(bvid.clone(), aid));
-                    }
-                }
-                Some(AppAction::None)
-            }
-            KeyCode::Char('p') => {
-                if let Some(card) = self.videos.get(self.selected_index) {
-                    if let Some(bvid) = &card.video.bvid {
-                        let aid = card.video.id;
-                        return Some(AppAction::OpenVideoDetail(bvid.clone(), aid));
-                    }
-                }
-                Some(AppAction::None)
-            }
-            KeyCode::Char('r') => {
-                self.loading = true;
-                self.videos.clear();
-                self.pending_downloads.clear();
-                Some(AppAction::RefreshHome)
-            }
-            KeyCode::Tab => Some(AppAction::NavNext),
-            KeyCode::BackTab => Some(AppAction::NavPrev),
-            KeyCode::Char('t') => Some(AppAction::NextTheme),
-            KeyCode::Char('s') => Some(AppAction::SwitchToSettings),
-            _ => Some(AppAction::None),
+    fn handle_input(
+        &mut self,
+        key: KeyCode,
+        keys: &crate::storage::Keybindings,
+    ) -> Option<AppAction> {
+        if keys.matches_quit(key) {
+            return Some(AppAction::Quit);
         }
+        if keys.matches_down(key) {
+            if !self.videos.is_empty() {
+                let new_idx = self.selected_index + self.columns;
+                if new_idx < self.videos.len() {
+                    self.selected_index = new_idx;
+                }
+                self.update_scroll(Self::DEFAULT_VISIBLE_ROWS);
+                // Check for pagination
+                if self.is_near_bottom(Self::DEFAULT_VISIBLE_ROWS) && !self.loading_more {
+                    return Some(AppAction::LoadMoreRecommendations);
+                }
+            }
+            return Some(AppAction::None);
+        }
+        if keys.matches_up(key) {
+            if !self.videos.is_empty() && self.selected_index >= self.columns {
+                self.selected_index -= self.columns;
+                self.update_scroll(Self::DEFAULT_VISIBLE_ROWS);
+            }
+            return Some(AppAction::None);
+        }
+        if keys.matches_right(key) {
+            if !self.videos.is_empty() && self.selected_index + 1 < self.videos.len() {
+                self.selected_index += 1;
+                self.update_scroll(Self::DEFAULT_VISIBLE_ROWS);
+            }
+            return Some(AppAction::None);
+        }
+        if keys.matches_left(key) {
+            if !self.videos.is_empty() && self.selected_index > 0 {
+                self.selected_index -= 1;
+                self.update_scroll(Self::DEFAULT_VISIBLE_ROWS);
+            }
+            return Some(AppAction::None);
+        }
+        if keys.matches_confirm(key) || keys.matches_play(key) {
+            if let Some(card) = self.videos.get(self.selected_index) {
+                if let Some(bvid) = &card.video.bvid {
+                    let aid = card.video.id;
+                    return Some(AppAction::OpenVideoDetail(bvid.clone(), aid));
+                }
+            }
+            return Some(AppAction::None);
+        }
+        if keys.matches_refresh(key) {
+            self.loading = true;
+            self.videos.clear();
+            self.pending_downloads.clear();
+            return Some(AppAction::RefreshHome);
+        }
+        if keys.matches_nav_next(key) {
+            return Some(AppAction::NavNext);
+        }
+        if keys.matches_nav_prev(key) {
+            return Some(AppAction::NavPrev);
+        }
+        if keys.matches_next_theme(key) {
+            return Some(AppAction::NextTheme);
+        }
+        if keys.matches_open_settings(key) {
+            return Some(AppAction::SwitchToSettings);
+        }
+        Some(AppAction::None)
     }
 
     fn handle_mouse(&mut self, event: MouseEvent, area: Rect) -> Option<AppAction> {

@@ -38,6 +38,7 @@ pub struct SettingsPage {
     pub keybindings: Keybindings,
     pub current_theme_variant: ThemeVariant,
     section_index: usize,
+    pub editing_keybind: bool,
 }
 
 impl SettingsPage {
@@ -54,22 +55,41 @@ impl SettingsPage {
             keybindings,
             current_theme_variant: theme_variant,
             section_index: 0,
+            editing_keybind: false,
         }
     }
 
     fn keybind_labels(&self) -> Vec<(&'static str, &str)> {
         vec![
+            // Global actions
             ("退出", &self.keybindings.quit),
+            ("确认", &self.keybindings.confirm),
+            ("返回", &self.keybindings.back),
+            ("刷新", &self.keybindings.refresh),
+            // Navigation
             ("向上", &self.keybindings.nav_up),
             ("向下", &self.keybindings.nav_down),
             ("向左", &self.keybindings.nav_left),
             ("向右", &self.keybindings.nav_right),
-            ("确认", &self.keybindings.confirm),
-            ("返回", &self.keybindings.back),
+            ("下一页面", &self.keybindings.nav_next_page),
+            ("上一页面", &self.keybindings.nav_prev_page),
+            // Section/Tab
+            ("上一分区", &self.keybindings.section_prev),
+            ("下一分区", &self.keybindings.section_next),
+            ("标签1", &self.keybindings.tab_1),
+            ("标签2", &self.keybindings.tab_2),
+            ("标签3", &self.keybindings.tab_3),
+            // Actions
             ("切换主题", &self.keybindings.next_theme),
             ("播放", &self.keybindings.play),
-            ("刷新", &self.keybindings.refresh),
             ("设置", &self.keybindings.open_settings),
+            ("搜索", &self.keybindings.search_focus),
+            // Comments
+            ("评论", &self.keybindings.comment),
+            ("展开回复", &self.keybindings.toggle_replies),
+            // Dynamic page
+            ("上一UP", &self.keybindings.up_prev),
+            ("下一UP", &self.keybindings.up_next),
         ]
     }
 }
@@ -174,86 +194,109 @@ impl Component for SettingsPage {
         frame.render_widget(help, main_chunks[2]);
     }
 
-    fn handle_input(&mut self, key: KeyCode) -> Option<AppAction> {
-        match key {
-            KeyCode::Esc => Some(AppAction::BackToList),
-            KeyCode::Tab => Some(AppAction::NavNext),
-            KeyCode::BackTab => Some(AppAction::NavPrev),
-            KeyCode::Char('[') => {
-                // Cycle through sections backwards
-                let sections = SettingsSection::all();
-                self.section_index = if self.section_index == 0 {
-                    sections.len() - 1
-                } else {
-                    self.section_index - 1
-                };
-                self.current_section = sections[self.section_index];
-                Some(AppAction::None)
-            }
-            KeyCode::Char(']') => {
-                // Cycle through sections forwards
-                let sections = SettingsSection::all();
-                self.section_index = (self.section_index + 1) % sections.len();
-                self.current_section = sections[self.section_index];
-                Some(AppAction::None)
-            }
-            KeyCode::Up | KeyCode::Char('k') => {
-                match self.current_section {
-                    SettingsSection::Theme => {
-                        if self.selected_theme_index > 0 {
-                            self.selected_theme_index -= 1;
-                        }
-                    }
-                    SettingsSection::Keybindings => {
-                        if self.selected_keybind_index > 0 {
-                            self.selected_keybind_index -= 1;
-                        }
-                    }
-                    SettingsSection::Account => {}
-                }
-                Some(AppAction::None)
-            }
-            KeyCode::Down | KeyCode::Char('j') => {
-                match self.current_section {
-                    SettingsSection::Theme => {
-                        let max = ThemeVariant::all().len().saturating_sub(1);
-                        if self.selected_theme_index < max {
-                            self.selected_theme_index += 1;
-                        }
-                    }
-                    SettingsSection::Keybindings => {
-                        let max = self.keybind_labels().len().saturating_sub(1);
-                        if self.selected_keybind_index < max {
-                            self.selected_keybind_index += 1;
-                        }
-                    }
-                    SettingsSection::Account => {}
-                }
-                Some(AppAction::None)
-            }
-            KeyCode::Enter => {
-                match self.current_section {
-                    SettingsSection::Theme => {
-                        let themes = ThemeVariant::all();
-                        if self.selected_theme_index < themes.len() {
-                            let selected = themes[self.selected_theme_index];
-                            self.current_theme_variant = selected;
-                            return Some(AppAction::SetTheme(selected));
-                        }
-                    }
-                    SettingsSection::Account => {
-                        // Logout
-                        return Some(AppAction::Logout);
-                    }
-                    SettingsSection::Keybindings => {
-                        // TODO: Could add keybind editing modal
-                    }
-                }
-                Some(AppAction::None)
-            }
-            KeyCode::Char('q') => Some(AppAction::Quit),
-            _ => Some(AppAction::None),
+    fn handle_input(
+        &mut self,
+        key: KeyCode,
+        keys: &crate::storage::Keybindings,
+    ) -> Option<AppAction> {
+        // Handle keybind editing mode - any key pressed becomes the new binding
+        if self.editing_keybind {
+            let new_key = crate::storage::Keybindings::keycode_to_string(key);
+            self.keybindings
+                .update_by_index(self.selected_keybind_index, new_key);
+            self.editing_keybind = false;
+            // Save keybindings immediately after editing
+            return Some(AppAction::SaveKeybindings(Box::new(
+                self.keybindings.clone(),
+            )));
         }
+
+        if keys.matches_back(key) {
+            return Some(AppAction::BackToList);
+        }
+        if keys.matches_nav_next(key) {
+            return Some(AppAction::NavNext);
+        }
+        if keys.matches_nav_prev(key) {
+            return Some(AppAction::NavPrev);
+        }
+        if keys.matches_section_prev(key) {
+            // Cycle through sections backwards
+            let sections = SettingsSection::all();
+            self.section_index = if self.section_index == 0 {
+                sections.len() - 1
+            } else {
+                self.section_index - 1
+            };
+            self.current_section = sections[self.section_index];
+            return Some(AppAction::None);
+        }
+        if keys.matches_section_next(key) {
+            // Cycle through sections forwards
+            let sections = SettingsSection::all();
+            self.section_index = (self.section_index + 1) % sections.len();
+            self.current_section = sections[self.section_index];
+            return Some(AppAction::None);
+        }
+        if keys.matches_up(key) {
+            match self.current_section {
+                SettingsSection::Theme => {
+                    if self.selected_theme_index > 0 {
+                        self.selected_theme_index -= 1;
+                    }
+                }
+                SettingsSection::Keybindings => {
+                    if self.selected_keybind_index > 0 {
+                        self.selected_keybind_index -= 1;
+                    }
+                }
+                SettingsSection::Account => {}
+            }
+            return Some(AppAction::None);
+        }
+        if keys.matches_down(key) {
+            match self.current_section {
+                SettingsSection::Theme => {
+                    let max = ThemeVariant::all().len().saturating_sub(1);
+                    if self.selected_theme_index < max {
+                        self.selected_theme_index += 1;
+                    }
+                }
+                SettingsSection::Keybindings => {
+                    let max = self.keybindings.get_all_labels().len().saturating_sub(1);
+                    if self.selected_keybind_index < max {
+                        self.selected_keybind_index += 1;
+                    }
+                }
+                SettingsSection::Account => {}
+            }
+            return Some(AppAction::None);
+        }
+        if keys.matches_confirm(key) {
+            match self.current_section {
+                SettingsSection::Theme => {
+                    let themes = ThemeVariant::all();
+                    if self.selected_theme_index < themes.len() {
+                        let selected = themes[self.selected_theme_index];
+                        self.current_theme_variant = selected;
+                        return Some(AppAction::SetTheme(selected));
+                    }
+                }
+                SettingsSection::Account => {
+                    // Logout
+                    return Some(AppAction::Logout);
+                }
+                SettingsSection::Keybindings => {
+                    // Enter keybind editing mode
+                    self.editing_keybind = true;
+                }
+            }
+            return Some(AppAction::None);
+        }
+        if keys.matches_quit(key) {
+            return Some(AppAction::Quit);
+        }
+        Some(AppAction::None)
     }
 }
 

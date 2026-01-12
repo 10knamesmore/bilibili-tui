@@ -245,17 +245,21 @@ impl Component for LoginPage {
         frame.render_widget(help, chunks[3]);
     }
 
-    fn handle_input(&mut self, key: KeyCode) -> Option<AppAction> {
-        match key {
-            KeyCode::Char('q') => Some(AppAction::Quit),
-            KeyCode::Char('r') => {
-                // Request refresh - will be handled by App
-                self.qrcode_data = None;
-                self.poll_status = QrcodePollStatus::Waiting;
-                Some(AppAction::SwitchToLogin)
-            }
-            _ => Some(AppAction::None),
+    fn handle_input(
+        &mut self,
+        key: KeyCode,
+        keys: &crate::storage::Keybindings,
+    ) -> Option<AppAction> {
+        if keys.matches_quit(key) {
+            return Some(AppAction::Quit);
         }
+        if keys.matches_refresh(key) {
+            // Request refresh - will be handled by App
+            self.qrcode_data = None;
+            self.poll_status = QrcodePollStatus::Waiting;
+            return Some(AppAction::SwitchToLogin);
+        }
+        Some(AppAction::None)
     }
 }
 

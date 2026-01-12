@@ -379,7 +379,11 @@ impl Component for SearchPage {
         frame.render_widget(help, chunks[2]);
     }
 
-    fn handle_input(&mut self, key: KeyCode) -> Option<AppAction> {
+    fn handle_input(
+        &mut self,
+        key: KeyCode,
+        keys: &crate::storage::Keybindings,
+    ) -> Option<AppAction> {
         if self.input_mode {
             match key {
                 KeyCode::Char(c) => {
@@ -432,84 +436,94 @@ impl Component for SearchPage {
                     self.input_mode = false;
                     Some(AppAction::None)
                 }
-                KeyCode::Tab => Some(AppAction::NavNext),
-                KeyCode::BackTab => Some(AppAction::NavPrev),
+                _ if keys.matches_nav_next(key) => Some(AppAction::NavNext),
+                _ if keys.matches_nav_prev(key) => Some(AppAction::NavPrev),
                 _ => Some(AppAction::None),
             }
         } else if self.show_hot_list {
-            match key {
-                KeyCode::Up => {
-                    if !self.hotwords.is_empty() {
-                        let len = self.hotwords.len();
-                        let current = self.hot_selected.unwrap_or(0);
-                        let next = if current == 0 { len - 1 } else { current - 1 };
-                        self.hot_selected = Some(next);
-                    }
-                    Some(AppAction::None)
+            if keys.matches_up(key) {
+                if !self.hotwords.is_empty() {
+                    let len = self.hotwords.len();
+                    let current = self.hot_selected.unwrap_or(0);
+                    let next = if current == 0 { len - 1 } else { current - 1 };
+                    self.hot_selected = Some(next);
                 }
-                KeyCode::Down => {
-                    if !self.hotwords.is_empty() {
-                        let len = self.hotwords.len();
-                        let current = self.hot_selected.unwrap_or(0);
-                        let next = (current + 1) % len;
-                        self.hot_selected = Some(next);
-                    }
-                    Some(AppAction::None)
-                }
-                KeyCode::Enter => self.search_selected_hotword(),
-                KeyCode::Char('/') | KeyCode::Char('i') => {
-                    self.input_mode = true;
-                    self.show_hot_list = true;
-                    Some(AppAction::None)
-                }
-                KeyCode::Tab => Some(AppAction::NavNext),
-                KeyCode::BackTab => Some(AppAction::NavPrev),
-                KeyCode::Char('q') => Some(AppAction::Quit),
-                _ => Some(AppAction::None),
+                return Some(AppAction::None);
             }
+            if keys.matches_down(key) {
+                if !self.hotwords.is_empty() {
+                    let len = self.hotwords.len();
+                    let current = self.hot_selected.unwrap_or(0);
+                    let next = (current + 1) % len;
+                    self.hot_selected = Some(next);
+                }
+                return Some(AppAction::None);
+            }
+            if keys.matches_confirm(key) {
+                return self.search_selected_hotword();
+            }
+            if keys.matches_search_focus(key) {
+                self.input_mode = true;
+                self.show_hot_list = true;
+                return Some(AppAction::None);
+            }
+            if keys.matches_nav_next(key) {
+                return Some(AppAction::NavNext);
+            }
+            if keys.matches_nav_prev(key) {
+                return Some(AppAction::NavPrev);
+            }
+            if keys.matches_quit(key) {
+                return Some(AppAction::Quit);
+            }
+            Some(AppAction::None)
         } else {
-            match key {
-                KeyCode::Char('j') | KeyCode::Down => {
-                    self.grid.move_down();
-                    // Check for pagination
-                    if self.grid.is_near_bottom(3) && !self.loading_more {
-                        return Some(AppAction::LoadMoreSearch);
-                    }
-                    Some(AppAction::None)
+            if keys.matches_down(key) {
+                self.grid.move_down();
+                // Check for pagination
+                if self.grid.is_near_bottom(3) && !self.loading_more {
+                    return Some(AppAction::LoadMoreSearch);
                 }
-                KeyCode::Char('k') | KeyCode::Up => {
-                    self.grid.move_up();
-                    Some(AppAction::None)
-                }
-                KeyCode::Char('l') | KeyCode::Right => {
-                    self.grid.move_right();
-                    Some(AppAction::None)
-                }
-                KeyCode::Char('h') | KeyCode::Left => {
-                    self.grid.move_left();
-                    Some(AppAction::None)
-                }
-                KeyCode::Enter => {
-                    if let Some(card) = self.grid.selected_card() {
-                        if let (Some(bvid), Some(aid)) = (&card.bvid, card.aid) {
-                            return Some(AppAction::OpenVideoDetail(bvid.clone(), aid));
-                        }
-                    }
-                    Some(AppAction::None)
-                }
-                KeyCode::Char('/') | KeyCode::Char('i') => {
-                    self.input_mode = true;
-                    self.show_hot_list = true;
-                    if self.hot_selected.is_none() && !self.hotwords.is_empty() {
-                        self.hot_selected = Some(0);
-                    }
-                    Some(AppAction::None)
-                }
-                KeyCode::Tab => Some(AppAction::NavNext),
-                KeyCode::BackTab => Some(AppAction::NavPrev),
-                KeyCode::Char('q') => Some(AppAction::Quit),
-                _ => Some(AppAction::None),
+                return Some(AppAction::None);
             }
+            if keys.matches_up(key) {
+                self.grid.move_up();
+                return Some(AppAction::None);
+            }
+            if keys.matches_right(key) {
+                self.grid.move_right();
+                return Some(AppAction::None);
+            }
+            if keys.matches_left(key) {
+                self.grid.move_left();
+                return Some(AppAction::None);
+            }
+            if keys.matches_confirm(key) {
+                if let Some(card) = self.grid.selected_card() {
+                    if let (Some(bvid), Some(aid)) = (&card.bvid, card.aid) {
+                        return Some(AppAction::OpenVideoDetail(bvid.clone(), aid));
+                    }
+                }
+                return Some(AppAction::None);
+            }
+            if keys.matches_search_focus(key) {
+                self.input_mode = true;
+                self.show_hot_list = true;
+                if self.hot_selected.is_none() && !self.hotwords.is_empty() {
+                    self.hot_selected = Some(0);
+                }
+                return Some(AppAction::None);
+            }
+            if keys.matches_nav_next(key) {
+                return Some(AppAction::NavNext);
+            }
+            if keys.matches_nav_prev(key) {
+                return Some(AppAction::NavPrev);
+            }
+            if keys.matches_quit(key) {
+                return Some(AppAction::Quit);
+            }
+            Some(AppAction::None)
         }
     }
 

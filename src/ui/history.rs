@@ -276,57 +276,67 @@ impl Component for HistoryPage {
         self.render_grid(frame, inner, theme);
     }
 
-    fn handle_input(&mut self, key: KeyCode) -> Option<AppAction> {
+    fn handle_input(
+        &mut self,
+        key: KeyCode,
+        keys: &crate::storage::Keybindings,
+    ) -> Option<AppAction> {
         let cols = 4;
         let total = self.items.len();
 
-        match key {
-            KeyCode::Char('q') | KeyCode::Esc => Some(AppAction::BackToList),
-            KeyCode::Left | KeyCode::Char('h') => {
-                if self.selected > 0 {
-                    self.selected -= 1;
-                }
-                None
+        if keys.matches_quit(key) || keys.matches_back(key) {
+            return Some(AppAction::BackToList);
+        }
+        if keys.matches_left(key) {
+            if self.selected > 0 {
+                self.selected -= 1;
             }
-            KeyCode::Right | KeyCode::Char('l') => {
-                if self.selected + 1 < total {
-                    self.selected += 1;
-                }
-                None
+            return None;
+        }
+        if keys.matches_right(key) {
+            if self.selected + 1 < total {
+                self.selected += 1;
             }
-            KeyCode::Up | KeyCode::Char('k') => {
-                if self.selected >= cols {
-                    self.selected -= cols;
-                }
-                None
+            return None;
+        }
+        if keys.matches_up(key) {
+            if self.selected >= cols {
+                self.selected -= cols;
             }
-            KeyCode::Down | KeyCode::Char('j') => {
-                if self.selected + cols < total {
-                    self.selected += cols;
-                }
-                // Check if we need to load more
-                if self.is_near_bottom(4) {
-                    return Some(AppAction::LoadMoreHistory);
-                }
-                None
+            return None;
+        }
+        if keys.matches_down(key) {
+            if self.selected + cols < total {
+                self.selected += cols;
             }
-            KeyCode::Enter => {
-                if let Some(card) = self.items.get(self.selected) {
-                    // Only open video detail for video types
-                    if card.item.is_video() {
-                        if let Some(bvid) = card.item.get_bvid() {
-                            let aid = card.item.history.oid;
-                            return Some(AppAction::OpenVideoDetail(bvid.to_string(), aid));
-                        }
+            // Check if we need to load more
+            if self.is_near_bottom(4) {
+                return Some(AppAction::LoadMoreHistory);
+            }
+            return None;
+        }
+        if keys.matches_confirm(key) {
+            if let Some(card) = self.items.get(self.selected) {
+                // Only open video detail for video types
+                if card.item.is_video() {
+                    if let Some(bvid) = card.item.get_bvid() {
+                        let aid = card.item.history.oid;
+                        return Some(AppAction::OpenVideoDetail(bvid.to_string(), aid));
                     }
                 }
-                None
             }
-            KeyCode::Tab => Some(AppAction::NavNext),
-            KeyCode::BackTab => Some(AppAction::NavPrev),
-            KeyCode::Char('t') => Some(AppAction::NextTheme),
-            _ => None,
+            return None;
         }
+        if keys.matches_nav_next(key) {
+            return Some(AppAction::NavNext);
+        }
+        if keys.matches_nav_prev(key) {
+            return Some(AppAction::NavPrev);
+        }
+        if keys.matches_next_theme(key) {
+            return Some(AppAction::NextTheme);
+        }
+        None
     }
 
     fn handle_mouse(&mut self, event: MouseEvent, area: Rect) -> Option<AppAction> {

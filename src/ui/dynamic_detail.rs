@@ -430,7 +430,11 @@ impl Component for DynamicDetailPage {
         frame.render_widget(help, help_chunk);
     }
 
-    fn handle_input(&mut self, key: KeyCode) -> Option<AppAction> {
+    fn handle_input(
+        &mut self,
+        key: KeyCode,
+        keys: &crate::storage::Keybindings,
+    ) -> Option<AppAction> {
         // Handle input mode for adding comments
         if self.input_mode {
             match key {
@@ -470,72 +474,72 @@ impl Component for DynamicDetailPage {
             }
         }
 
-        match key {
-            KeyCode::Char('q') | KeyCode::Esc => Some(AppAction::BackToList),
-            KeyCode::Char('c') => {
-                self.input_mode = true;
-                self.input_buffer.clear();
-                Some(AppAction::None)
+        if keys.matches_quit(key) || keys.matches_back(key) {
+            return Some(AppAction::BackToList);
+        }
+        if keys.matches_comment(key) {
+            self.input_mode = true;
+            self.input_buffer.clear();
+            return Some(AppAction::None);
+        }
+        if keys.matches_left(key) {
+            // Previous image
+            if !self.image_urls.is_empty() && self.current_image_index > 0 {
+                self.current_image_index -= 1;
             }
-            KeyCode::Char('h') | KeyCode::Left => {
-                // Previous image
-                if !self.image_urls.is_empty() && self.current_image_index > 0 {
-                    self.current_image_index -= 1;
-                }
-                Some(AppAction::None)
+            return Some(AppAction::None);
+        }
+        if keys.matches_right(key) {
+            // Next image
+            if self.current_image_index + 1 < self.image_urls.len() {
+                self.current_image_index += 1;
             }
-            KeyCode::Char('l') | KeyCode::Right => {
-                // Next image
-                if self.current_image_index + 1 < self.image_urls.len() {
-                    self.current_image_index += 1;
-                }
-                Some(AppAction::None)
+            return Some(AppAction::None);
+        }
+        // 'n' for load more comments (page-specific)
+        if key == KeyCode::Char('n') {
+            return Some(AppAction::LoadMoreComments);
+        }
+        if keys.matches_down(key) {
+            // Scroll down and track selected comment
+            if self.selected_comment + 1 < self.comments.len() {
+                self.selected_comment += 1;
             }
-            KeyCode::Char('n') => {
-                // Load more comments
-                Some(AppAction::LoadMoreComments)
+            let comment_blocks = self.get_comment_lines();
+            let total_lines: usize = comment_blocks.iter().map(|b| b.len()).sum();
+            if self.comment_scroll + 1 < total_lines {
+                self.comment_scroll += 1;
             }
-            KeyCode::Char('j') | KeyCode::Down => {
-                // Scroll down and track selected comment
-                if self.selected_comment + 1 < self.comments.len() {
-                    self.selected_comment += 1;
-                }
-                let comment_blocks = self.get_comment_lines();
-                let total_lines: usize = comment_blocks.iter().map(|b| b.len()).sum();
-                if self.comment_scroll + 1 < total_lines {
-                    self.comment_scroll += 1;
-                }
-                Some(AppAction::None)
+            return Some(AppAction::None);
+        }
+        if keys.matches_up(key) {
+            // Scroll up
+            if self.selected_comment > 0 {
+                self.selected_comment -= 1;
             }
-            KeyCode::Char('k') | KeyCode::Up => {
-                // Scroll up
-                if self.selected_comment > 0 {
-                    self.selected_comment -= 1;
-                }
-                if self.comment_scroll > 0 {
-                    self.comment_scroll -= 1;
-                }
-                Some(AppAction::None)
+            if self.comment_scroll > 0 {
+                self.comment_scroll -= 1;
             }
-            KeyCode::Enter => {
-                // Like the currently selected comment
-                if let Some(ref item) = self.dynamic_item {
-                    if self.selected_comment < self.comments.len() {
-                        let comment = &self.comments[self.selected_comment];
-                        let comment_type = item.comment_type();
-                        if let Some(oid) = item.comment_oid(&self.dynamic_id) {
-                            return Some(AppAction::LikeComment {
-                                oid,
-                                rpid: comment.rpid,
-                                comment_type,
-                            });
-                        }
+            return Some(AppAction::None);
+        }
+        if keys.matches_confirm(key) {
+            // Like the currently selected comment
+            if let Some(ref item) = self.dynamic_item {
+                if self.selected_comment < self.comments.len() {
+                    let comment = &self.comments[self.selected_comment];
+                    let comment_type = item.comment_type();
+                    if let Some(oid) = item.comment_oid(&self.dynamic_id) {
+                        return Some(AppAction::LikeComment {
+                            oid,
+                            rpid: comment.rpid,
+                            comment_type,
+                        });
                     }
                 }
-                Some(AppAction::None)
             }
-            _ => Some(AppAction::None),
+            return Some(AppAction::None);
         }
+        Some(AppAction::None)
     }
 
     fn handle_mouse(&mut self, event: MouseEvent, _area: Rect) -> Option<AppAction> {

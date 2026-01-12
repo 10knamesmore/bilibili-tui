@@ -1,4 +1,4 @@
-use crate::storage::Credentials;
+use crate::storage::{Credentials, Keybindings};
 use crate::ui::ThemeVariant;
 
 /// Actions that can be triggered from UI components
@@ -59,6 +59,8 @@ pub enum AppAction {
     NextTheme,
     /// Set a specific theme
     SetTheme(ThemeVariant),
+    /// Save keybindings to config
+    SaveKeybindings(Box<Keybindings>),
     /// Logout and return to login page
     Logout,
     /// Like or unlike a comment (oid, rpid, comment_type)

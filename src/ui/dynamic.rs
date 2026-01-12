@@ -574,111 +574,114 @@ impl Component for DynamicPage {
         &mut self,
         key: KeyCode,
         modifiers: crossterm::event::KeyModifiers,
+        keys: &crate::storage::Keybindings,
     ) -> Option<AppAction> {
-        use crossterm::event::KeyModifiers;
+        let _ = modifiers;
 
-        match (key, modifiers) {
-            // Card navigation - Arrow keys
-            (KeyCode::Down, KeyModifiers::NONE) => {
-                self.grid.move_down();
-                if self.grid.is_near_bottom(3) && !self.loading_more && self.has_more {
-                    return Some(AppAction::LoadMoreDynamic);
+        // Card navigation
+        if keys.matches_down(key) {
+            self.grid.move_down();
+            if self.grid.is_near_bottom(3) && !self.loading_more && self.has_more {
+                return Some(AppAction::LoadMoreDynamic);
+            }
+            return Some(AppAction::None);
+        }
+        if keys.matches_up(key) {
+            self.grid.move_up();
+            return Some(AppAction::None);
+        }
+        if keys.matches_left(key) {
+            self.grid.move_left();
+            return Some(AppAction::None);
+        }
+        if keys.matches_right(key) {
+            self.grid.move_right();
+            return Some(AppAction::None);
+        }
+
+        // UP master navigation
+        if keys.matches_up_prev(key) {
+            if self.selected_up_index > 0 {
+                return Some(AppAction::SelectUpMaster(self.selected_up_index - 1));
+            }
+            return Some(AppAction::None);
+        }
+        if keys.matches_up_next(key) {
+            if self.selected_up_index < self.up_list.len() {
+                return Some(AppAction::SelectUpMaster(self.selected_up_index + 1));
+            }
+            return Some(AppAction::None);
+        }
+
+        // Page navigation
+        if keys.matches_nav_next(key) {
+            return Some(AppAction::NavNext);
+        }
+        if keys.matches_nav_prev(key) {
+            return Some(AppAction::NavPrev);
+        }
+
+        // Tab switching
+        if keys.matches_section_prev(key) {
+            let new_tab = match self.current_tab {
+                DynamicTab::All => DynamicTab::Images,
+                DynamicTab::Videos => DynamicTab::All,
+                DynamicTab::Images => DynamicTab::Videos,
+            };
+            return Some(AppAction::SwitchDynamicTab(new_tab));
+        }
+        if keys.matches_section_next(key) {
+            let new_tab = match self.current_tab {
+                DynamicTab::All => DynamicTab::Videos,
+                DynamicTab::Videos => DynamicTab::Images,
+                DynamicTab::Images => DynamicTab::All,
+            };
+            return Some(AppAction::SwitchDynamicTab(new_tab));
+        }
+
+        // Direct tab access
+        if keys.matches_tab_1(key) {
+            return Some(AppAction::SwitchDynamicTab(DynamicTab::All));
+        }
+        if keys.matches_tab_2(key) {
+            return Some(AppAction::SwitchDynamicTab(DynamicTab::Videos));
+        }
+        if keys.matches_tab_3(key) {
+            return Some(AppAction::SwitchDynamicTab(DynamicTab::Images));
+        }
+
+        // Open selected card
+        if keys.matches_confirm(key) {
+            if let Some(card) = self.grid.selected_card() {
+                // Video card - open video detail
+                if let Some(ref bvid) = card.bvid {
+                    return Some(AppAction::OpenVideoDetail(bvid.clone(), 0));
                 }
-                Some(AppAction::None)
-            }
-            (KeyCode::Up, KeyModifiers::NONE) => {
-                self.grid.move_up();
-                Some(AppAction::None)
-            }
-            (KeyCode::Left, KeyModifiers::NONE) => {
-                self.grid.move_left();
-                Some(AppAction::None)
-            }
-            (KeyCode::Right, KeyModifiers::NONE) => {
-                self.grid.move_right();
-                Some(AppAction::None)
-            }
-
-            // UP master navigation - h (previous), l (next)
-            (KeyCode::Char('h'), KeyModifiers::NONE) => {
-                if self.selected_up_index > 0 {
-                    Some(AppAction::SelectUpMaster(self.selected_up_index - 1))
-                } else {
-                    Some(AppAction::None)
-                }
-            }
-            (KeyCode::Char('l'), KeyModifiers::NONE) => {
-                if self.selected_up_index < self.up_list.len() {
-                    Some(AppAction::SelectUpMaster(self.selected_up_index + 1))
-                } else {
-                    Some(AppAction::None)
-                }
-            }
-
-            // Tab switches sidebar navigation (consistent with other pages)
-            (KeyCode::Tab, KeyModifiers::NONE) => Some(AppAction::NavNext),
-            (KeyCode::BackTab, _) => Some(AppAction::NavPrev),
-
-            // Tab switching - [ and ] keys
-            (KeyCode::Char('['), KeyModifiers::NONE) => {
-                let new_tab = match self.current_tab {
-                    DynamicTab::All => DynamicTab::Images,
-                    DynamicTab::Videos => DynamicTab::All,
-                    DynamicTab::Images => DynamicTab::Videos,
-                };
-                Some(AppAction::SwitchDynamicTab(new_tab))
-            }
-            (KeyCode::Char(']'), KeyModifiers::NONE) => {
-                let new_tab = match self.current_tab {
-                    DynamicTab::All => DynamicTab::Videos,
-                    DynamicTab::Videos => DynamicTab::Images,
-                    DynamicTab::Images => DynamicTab::All,
-                };
-                Some(AppAction::SwitchDynamicTab(new_tab))
-            }
-
-            // Tab switching - number keys (1-3) for direct access
-            (KeyCode::Char('1'), KeyModifiers::NONE) => {
-                Some(AppAction::SwitchDynamicTab(DynamicTab::All))
-            }
-            (KeyCode::Char('2'), KeyModifiers::NONE) => {
-                Some(AppAction::SwitchDynamicTab(DynamicTab::Videos))
-            }
-            (KeyCode::Char('3'), KeyModifiers::NONE) => {
-                Some(AppAction::SwitchDynamicTab(DynamicTab::Images))
-            }
-
-            // Open selected card
-            (KeyCode::Enter, _) => {
-                if let Some(card) = self.grid.selected_card() {
-                    // Video card - open video detail
-                    if let Some(ref bvid) = card.bvid {
-                        return Some(AppAction::OpenVideoDetail(bvid.clone(), 0));
-                    }
-                    // Non-video card (draw/opus) - open dynamic detail
-                    else if let Some(item) = self.selected_dynamic_item() {
-                        if item.is_draw() || item.is_opus() {
-                            if let Some(id) = &item.id_str {
-                                return Some(AppAction::OpenDynamicDetail(id.clone()));
-                            }
+                // Non-video card (draw/opus) - open dynamic detail
+                else if let Some(item) = self.selected_dynamic_item() {
+                    if item.is_draw() || item.is_opus() {
+                        if let Some(id) = &item.id_str {
+                            return Some(AppAction::OpenDynamicDetail(id.clone()));
                         }
                     }
                 }
-                Some(AppAction::None)
             }
-
-            // Refresh
-            (KeyCode::Char('r'), KeyModifiers::NONE) => {
-                self.loading = true;
-                self.grid.clear();
-                Some(AppAction::RefreshDynamic)
-            }
-
-            // Quit
-            (KeyCode::Char('q'), KeyModifiers::NONE) => Some(AppAction::Quit),
-
-            _ => Some(AppAction::None),
+            return Some(AppAction::None);
         }
+
+        // Refresh
+        if keys.matches_refresh(key) {
+            self.loading = true;
+            self.grid.clear();
+            return Some(AppAction::RefreshDynamic);
+        }
+
+        // Quit
+        if keys.matches_quit(key) {
+            return Some(AppAction::Quit);
+        }
+
+        Some(AppAction::None)
     }
 
     fn handle_mouse(&mut self, event: MouseEvent, area: Rect) -> Option<AppAction> {
